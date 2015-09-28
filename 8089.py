@@ -1,4 +1,7 @@
 #!/usr/bin/python3
+from collections import namedtuple
+
+Op = namedtuple('Op', ['mnem', 'form', 'bits', 'mask', 'fields'])
 
 inst_set = {
     'MOV' :   { ('mem',  'reg')  : 'rrr00aa1 100000mm oooooooo',
@@ -139,15 +142,107 @@ inst_set = {
 
 inst_by_opcode = { }
 
-for inst, details in inst_set.items():
-    for form, encoding  in details.items():
-        opcode = int(encoding[9:15], 2) << 2
-        if opcode not in inst_by_opcode:
-            inst_by_opcode[opcode] = []
-        inst_by_opcode[opcode].append((inst, form, encoding))
-        #print(inst, form, "%02x" % opcode)
 
-for opcode in sorted(inst_by_opcode):
-    for inst, form, encoding in inst_by_opcode[opcode]:
-        print ("%02x:" % opcode, inst, form, encoding)
+def byte_parse(bs):
+    b = 0
+    m = 0
+    f = { }
+    for i in range(8):
+        c = bs[7-i]
+        if c == '0':
+            m |= (1 << i)
+        elif c == '1':
+            b |= (1 << i)
+            m |= (1 << i)
+        else:
+            if c not in f:
+                f[c] = 0
+            f[c] |= (1 << i)
+    return b, m, f
 
+def encoding_parse(encoding):
+    encoding = encoding.replace(' ', '')
+    assert len(encoding) % 8 == 0
+    bits = []
+    mask = []
+    fields = { }
+    byte_count = len(encoding) // 8
+    for i in range(byte_count):
+        b, m, f = byte_parse(encoding[i*8:i*8+8])
+        bits.append(b)
+        mask.append(m)
+        for k in f:
+            if k not in fields:
+                fields[k] = [0x00] * byte_count
+            fields[k][i] = f[k]
+    return bits, mask, fields
+
+
+def opcode_init():
+    for mnem, details in inst_set.items():
+        for form, encoding in details.items():
+            bits, mask, fields = encoding_parse(encoding)
+            opcode = bits[1] & 0xfc
+            if opcode not in inst_by_opcode:
+                inst_by_opcode[opcode] = []
+            inst_by_opcode[opcode].append(Op(mnem, form, bits, mask, fields))
+            #print(inst, form, "%02x" % opcode)
+
+
+def opcode_table_print():
+    print(inst_by_opcode[0])
+    for opcode in sorted(inst_by_opcode.keys()):
+        for mnem, form, bits, mask, fields in inst_by_opcode[opcode]:
+            print("%02x:" % opcode, mnem, bits, mask, fields)
+
+
+
+def extract_field(inst, op, f):
+    v = 0
+    for i in range(min(len(inst), len(op.fields[f]))):
+        for j in reversed(range(8)):
+            if op.fields[f][i] & (1 << j):
+                v = (v << 1) | ((inst[i] >> j) & 1)
+    return v
+    
+
+def opcode_match(fw, pc):
+    opcode = fw[pc+1] & 0xfc
+    if opcode in inst_by_opcode:
+        for op in inst_by_opcode[opcode]:
+            for i in range(len(op.bits)):
+                if fw[pc+i] & op.mask[i] != op.bits[i] & op.mask[i]:
+                    continue
+                length = len(op.bits)
+                if 'a' in op.fields:
+                    a = extract_field(fw[pc:pc+length], op, 'a')
+                    if a != 1:
+                        length -= 1 # no 8-bit offset field
+                return length, op
+    return 2, None  # XXX only guessing length - maybe guess better based on
+                    # fields of first byte?
+
+
+def disassemble(fw, pc):
+    inst = fw[pc:pc+2]
+    length, op = opcode_match(fw, pc)
+    if op is None:
+        return length, "??? %02x %02x" % (inst[0], inst[1])
+    return length, op.mnem
+
+def main(fn):
+    opcode_init()
+    #opcode_table_print()
+
+    with open(fn, 'rb') as f:
+        fw = bytearray(f.read())
+
+    pc = 0
+    while pc < len(fw) - 2:
+        (length, dis) = disassemble(fw, pc)
+        print("%04x: %s" % (pc, dis))
+        pc += length
+
+
+if __name__ == '__main__':
+    main('147931.bin')
