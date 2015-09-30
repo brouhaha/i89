@@ -6,11 +6,11 @@ Op = namedtuple('Op', ['mnem', 'form', 'bits', 'mask', 'fields'])
 inst_set = {
     'MOV' :   { ('mem',  'reg')  : 'rrr00aa1 100000mm oooooooo',
                 ('reg',  'mem')  : 'rrr00aa1 100001mm oooooooo',
-                ('mem',  'mem')  : '00000aa1 100100mm oooooooo 00000aa1 110011mm oooooooo' },
+                ('mem',  'mem')  : '00000aa1 100100mm oooooooo/00000aa1 110011mm oooooooo' },
 
     'MOVB' :  { ('mem',  'reg')  : 'rrr00aa0 100000mm oooooooo',
                 ('reg',  'mem')  : 'rrr00aa0 100001mm oooooooo',
-                ('mem',  'mem')  : '00000aa0 100100mm oooooooo 000000a0 110011mm oooooooo' },
+                ('mem',  'mem')  : '00000aa0 100100mm oooooooo/00000aa0 110011mm oooooooo' },
 
     'MOVBI' : { ('i8',   'reg')  : 'rrr01000 00110000 iiiiiiii',
                 ('i8',   'mem')  : '00001aa0 010011mm oooooooo iiiiiiii' },
@@ -143,7 +143,7 @@ inst_set = {
 inst_by_opcode = { }
 
 
-def byte_parse(bs):
+def byte_parse(bs, second_flag):
     b = 0
     m = 0
     f = { }
@@ -155,6 +155,8 @@ def byte_parse(bs):
             b |= (1 << i)
             m |= (1 << i)
         else:
+            if second_flag:
+                c += '2'
             if c not in f:
                 f[c] = 0
             f[c] |= (1 << i)
@@ -162,19 +164,30 @@ def byte_parse(bs):
 
 def encoding_parse(encoding):
     encoding = encoding.replace(' ', '')
-    assert len(encoding) % 8 == 0
     bits = []
     mask = []
     fields = { }
-    byte_count = len(encoding) // 8
-    for i in range(byte_count):
-        b, m, f = byte_parse(encoding[i*8:i*8+8])
+    second_flag = False
+    i = 0
+    while len(encoding):
+        if encoding[0] == '/':
+            encoding = encoding[1:]
+            second_flag = True
+            continue
+        assert len(encoding) >= 8
+        byte = encoding[0:8]
+        encoding = encoding[8:]
+        b, m, f = byte_parse(byte, second_flag)
         bits.append(b)
         mask.append(m)
         for k in f:
             if k not in fields:
-                fields[k] = [0x00] * byte_count
-            fields[k][i] = f[k]
+                fields[k] = [0x00] * (i+1)
+            fields[k].append(f[k])
+        i += 1
+    for k in fields:
+        if len(fields[k]) < i:
+            fields[k] += [0x00] * (i - len(fields[k]))
     return bits, mask, fields
 
 
@@ -232,7 +245,7 @@ def disassemble(fw, pc):
 
 def main(fn):
     opcode_init()
-    #opcode_table_print()
+    opcode_table_print()
 
     with open(fn, 'rb') as f:
         fw = bytearray(f.read())
