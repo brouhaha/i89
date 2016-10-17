@@ -24,12 +24,12 @@ Op = namedtuple('Op', ['mnem', 'form', 'bits', 'mask', 'fields'])
 # Note ASM89 uses x86 assembler convention of dest, src
 inst_set = [
     # LJMP is ADDBI with rrr=100 (TP), put earlier than ADDBI in table
-    ['JMP',    [[()               , '10001000 00100000 jjjjjjjj']]],
+    ['jmp',    [[()               , '10001000 00100000 jjjjjjjj']]],
 
     # LJMP is ADDI with rrr=100 (TP), put earlier than ADDI in table
-    ['LJMP',   [[()               , '10010001 00100000 jjjjjjjj jjjjjjjj']]],
+    ['ljmp',   [[()               , '10010001 00100000 jjjjjjjj jjjjjjjj']]],
     
-    ['MOV',    [[('memo', 'reg')  , 'rrr00011 100000mm oooooooo'],
+    ['mov',    [[('memo', 'reg')  , 'rrr00011 100000mm oooooooo'],
                 [('mem',  'reg')  , 'rrr00aa1 100000mm'],
                 [('reg',  'memo') , 'rrr00011 100001mm oooooooo'],
                 [('reg',  'mem')  , 'rrr00aa1 100001mm'],
@@ -38,7 +38,7 @@ inst_set = [
                 [('mem',  'memo') , '00000aa1 100100mm/00000011 110011mm oooooooo'],
                 [('mem',  'mem')  , '00000aa1 100100mm/00000aa1 110011mm']]],
 
-    ['MOVB',   [[('memo', 'reg')  , 'rrr00010 100000mm oooooooo'],
+    ['movb',   [[('memo', 'reg')  , 'rrr00010 100000mm oooooooo'],
                 [('mem',  'reg')  , 'rrr00aa0 100000mm'],
                 [('reg',  'memo') , 'rrr00010 100001mm oooooooo'],
                 [('reg',  'mem')  , 'rrr00aa0 100001mm'],
@@ -47,180 +47,180 @@ inst_set = [
                 [('mem',  'memo') , '00000aa0 100100mm/00000010 110011mm oooooooo'],
                 [('mem',  'mem')  , '00000aa0 100100mm/00000aa0 110011mm']]],
 
-    ['MOVBI',  [[('i8',   'reg')  , 'rrr01000 00110000 iiiiiiii'],
+    ['movbi',  [[('i8',   'reg')  , 'rrr01000 00110000 iiiiiiii'],
                 [('i8',   'memo') , '00001010 010011mm oooooooo iiiiiiii'],
                 [('i8',   'mem')  , '00001aa0 010011mm iiiiiiii']]],
 
-    ['MOVI',   [[('i16',  'reg')  , 'rrr10001 00110000 iiiiiiii iiiiiiii'],
+    ['movi',   [[('i16',  'reg')  , 'rrr10001 00110000 iiiiiiii iiiiiiii'],
                 [('i16',  'memo') , '00010011 010011mm oooooooo iiiiiiii iiiiiiii'],
                 [('i16',  'mem')  , '00010aa1 010011mm iiiiiiii iiiiiiii']]],
 
-    ['MOVP',   [[('memo', 'preg') , 'ppp00011 100011mm oooooooo'],
+    ['movp',   [[('memo', 'preg') , 'ppp00011 100011mm oooooooo'],
                 [('mem',  'preg') , 'ppp00aa1 100011mm'],
                 [('preg', 'memo') , 'ppp00011 100110mm oooooooo'],
                 [('preg', 'mem')  , 'ppp00aa1 100110mm']]],
 
-    ['LPD' ,   [[('memo',)        , 'ppp00011 100010mm oooooooo'],
+    ['lpd' ,   [[('memo',)        , 'ppp00011 100010mm oooooooo'],
                 [('mem',)         , 'ppp00aa1 100010mm']]],
     
-    ['LPDI',   [[()               , 'ppp10001 00001000 iiiiiiii iiiiiiii ssssssss ssssssss']]],
+    ['lpdi',   [[()               , 'ppp10001 00001000 iiiiiiii iiiiiiii ssssssss ssssssss']]],
 
-    ['ADD',    [[('memo', 'reg')  , 'rrr00011 101000mm oooooooo'],
+    ['add',    [[('memo', 'reg')  , 'rrr00011 101000mm oooooooo'],
                 [('mem',  'reg')  , 'rrr00aa1 101000mm'],
                 [('reg',  'memo') , 'rrr00011 110100mm oooooooo'],
                 [('reg',  'mem')  , 'rrr00aa1 110100mm']]],
 
     # ADDB encodings in 8089 assembler manual p3-12 have W bit wrong
-    ['ADDB',   [[('memo', 'reg')  , 'rrr00010 101000mm oooooooo'],
+    ['addb',   [[('memo', 'reg')  , 'rrr00010 101000mm oooooooo'],
                 [('mem',  'reg')  , 'rrr00aa0 101000mm'],
                 [('reg',  'memo') , 'rrr00010 110100mm oooooooo'],
                 [('reg',  'mem')  , 'rrr00aa0 110100mm']]],
 
-    ['ADDI',   [[('i16',  'reg')  , 'rrr10001 00100000 iiiiiiii iiiiiiii'],
+    ['addi',   [[('i16',  'reg')  , 'rrr10001 00100000 iiiiiiii iiiiiiii'],
                 [('i16',  'memo') , '00010011 110000mm oooooooo iiiiiiii iiiiiiii'],
                 [('i16',  'mem')  , '00010aa1 110000mm iiiiiiii iiiiiiii']]],
 
-    ['ADDBI',  [[('i8',   'reg')  , 'rrr01000 00100000 iiiiiiii'],
+    ['addbi',  [[('i8',   'reg')  , 'rrr01000 00100000 iiiiiiii'],
                 [('i8',   'memo') , '00001010 110000mm oooooooo iiiiiiii'],
                 [('i8',   'mem')  , '00001aa0 110000mm iiiiiiii']]],
 
-    ['INC',    [[('reg',)         , 'rrr00000 00111000'],
+    ['inc',    [[('reg',)         , 'rrr00000 00111000'],
                 [('memo',)        , '00000011 111010mm oooooooo'],
                 [('mem',)         , '00000aa1 111010mm']]],
 
-    ['INCB',   [[('memo',)        , '00000010 111010mm oooooooo'],
+    ['incb',   [[('memo',)        , '00000010 111010mm oooooooo'],
                 [('mem',)         , '00000aa0 111010mm']]],
 
-    ['DEC',    [[('reg',)         , 'rrr00000 00111100'],
+    ['dec',    [[('reg',)         , 'rrr00000 00111100'],
                 [('memo',)        , '00000011 111011mm oooooooo'],
                 [('mem',)         , '00000aa1 111011mm']]],
 
-    ['DECB',   [[('memo',)        , '00000010 111011mm oooooooo'],
+    ['decb',   [[('memo',)        , '00000010 111011mm oooooooo'],
                 [('mem',)         , '00000aa0 111011mm']]],
 
-    ['AND',    [[('memo', 'reg')  , 'rrr00011 101010mm oooooooo'],
+    ['and',    [[('memo', 'reg')  , 'rrr00011 101010mm oooooooo'],
                 [('mem',  'reg')  , 'rrr00aa1 101010mm'],
                 [('reg',  'memo') , 'rrr00011 110110mm oooooooo'],
                 [('reg',  'mem')  , 'rrr00aa1 110110mm']]],
 
-    ['ANDB',   [[('memo', 'reg')  , 'rrr00010 101010mm oooooooo'],
+    ['andb',   [[('memo', 'reg')  , 'rrr00010 101010mm oooooooo'],
                 [('mem',  'reg')  , 'rrr00aa0 101010mm'],
                 [('reg',  'memo') , 'rrr00010 110110mm oooooooo'],
                 [('reg',  'mem')  , 'rrr00aa0 110110mm']]],
 
-    ['ANDI',   [[('i16',  'reg')  , 'rrr10001 00101000 iiiiiiii iiiiiiii'],
+    ['andi',   [[('i16',  'reg')  , 'rrr10001 00101000 iiiiiiii iiiiiiii'],
                 [('i16',  'memo') , '00010011 110010mm oooooooo iiiiiiii iiiiiiii'],
                 [('i16',  'mem')  , '00010aa1 110010mm iiiiiiii iiiiiiii']]],
 
-    ['ANDBI',  [[('i8',   'reg')  , 'rrr01000 00101000 iiiiiiii'],
+    ['andbi',  [[('i8',   'reg')  , 'rrr01000 00101000 iiiiiiii'],
                 [('i8',   'memo') , '00001010 110010mm oooooooo iiiiiiii'],
                 [('i8',   'mem')  , '00001aa0 110010mm iiiiiiii']]],
 
-    ['OR',     [[('memo', 'reg')  , 'rrr00011 101001mm oooooooo'],
+    ['or',     [[('memo', 'reg')  , 'rrr00011 101001mm oooooooo'],
                 [('mem',  'reg')  , 'rrr00aa1 101001mm'],
                 [('reg',  'memo') , 'rrr00011 110101mm oooooooo'],
                 [('reg',  'mem')  , 'rrr00aa1 110101mm']]],
 
-    ['ORB',    [[('memo', 'reg')  , 'rrr00010 101001mm oooooooo'],
+    ['orb',    [[('memo', 'reg')  , 'rrr00010 101001mm oooooooo'],
                 [('mem',  'reg')  , 'rrr00aa0 101001mm'],
                 [('reg',  'memo') , 'rrr00010 110101mm oooooooo'],
                 [('reg',  'mem')  , 'rrr00aa0 110101mm']]],
 
-    ['ORI',    [[('i16',  'reg')  , 'rrr10001 00100100 iiiiiiii iiiiiiii'],
+    ['ori',    [[('i16',  'reg')  , 'rrr10001 00100100 iiiiiiii iiiiiiii'],
                 [('i16',  'memo') , '00010011 110001mm oooooooo iiiiiiii iiiiiiii'],
                 [('i16',  'mem')  , '00010aa1 110001mm iiiiiiii iiiiiiii']]],
 
-    ['ORBI',   [[('i8',   'reg')  , 'rrr01000 00100100 iiiiiiii'],
+    ['orbi',   [[('i8',   'reg')  , 'rrr01000 00100100 iiiiiiii'],
                 [('i8',   'memo') , '00001010 110001mm oooooooo iiiiiiii'],
                 [('i8',   'mem')  , '00001aa0 110001mm iiiiiiii']]],
 
-    ['NOT',    [[('reg',)         , 'rrr00000 00101100'],
+    ['not',    [[('reg',)         , 'rrr00000 00101100'],
                 [('memo',)        , '00000011 110111mm oooooooo'],
                 [('mem',)         , '00000aa1 110111mm'],
                 [('memo', 'reg')  , 'rrr00011 101011mm oooooooo'],
                 [('mem',  'reg')  , 'rrr00aa1 101011mm']]],
 
-    ['NOTB',   [[('memo',)        , '00000010 110111mm oooooooo'],
+    ['notb',   [[('memo',)        , '00000010 110111mm oooooooo'],
                 [('mem',)         , '00000aa0 110111mm'],
                 [('memo', 'reg')  , 'rrr00010 101011mm oooooooo'],
                 [('mem',  'reg')  , 'rrr00aa0 101011mm']]],
 
-    ['SETB',   [[('memo',)        , 'bbb00010 111101mm oooooooo'],
+    ['setb',   [[('memo',)        , 'bbb00010 111101mm oooooooo'],
                 [('mem',)         , 'bbb00aa0 111101mm']]],
 
-    ['CLR',    [[('memo',)        , 'bbb00010 111110mm oooooooo'],
+    ['clr',    [[('memo',)        , 'bbb00010 111110mm oooooooo'],
                 [('mem',)         , 'bbb00aa0 111110mm']]],
 
-    ['CALL',   [[('memo',)        , '10001011 100111mm oooooooo jjjjjjjj'],
+    ['call',   [[('memo',)        , '10001011 100111mm oooooooo jjjjjjjj'],
                 [('mem',)         , '10001aa1 100111mm jjjjjjjj']]],
 
-    ['LCALL',  [[('memo',)        , '10010011 100111mm oooooooo jjjjjjjj jjjjjjjj'],
+    ['lcall',  [[('memo',)        , '10010011 100111mm oooooooo jjjjjjjj jjjjjjjj'],
                 [('mem',)         , '10010aa1 100111mm jjjjjjjj jjjjjjjj']]],
 
-    ['JZ',     [[('lab',  'reg')  , 'rrr01000 01000100 jjjjjjjj'],
+    ['jz',     [[('lab',  'reg')  , 'rrr01000 01000100 jjjjjjjj'],
                 [('lab',  'memo') , '00001011 111001mm oooooooo jjjjjjjj'],
                 [('lab',  'mem')  , '00001aa1 111001mm jjjjjjjj']]],
 
-    ['LJZ',    [[('lab',  'reg')  , 'rrr10000 01000100 jjjjjjjj jjjjjjjj'],
+    ['ljz',    [[('lab',  'reg')  , 'rrr10000 01000100 jjjjjjjj jjjjjjjj'],
                 [('lab',  'memo') , '00010011 111001mm oooooooo jjjjjjjj jjjjjjjj'],
                 [('lab',  'mem')  , '00010aa1 111001mm jjjjjjjj jjjjjjjj']]],
 
-    ['JZB',    [[('memo',)        , '00001010 111001mm oooooooo jjjjjjjj'],
+    ['jzb',    [[('memo',)        , '00001010 111001mm oooooooo jjjjjjjj'],
                 [('mem',)         , '00001aa0 111001mm jjjjjjjj']]],
 
-    ['LJZB',   [[('memo',)        , '00010010 111001mm oooooooo jjjjjjjj jjjjjjjj'],
+    ['ljzb',   [[('memo',)        , '00010010 111001mm oooooooo jjjjjjjj jjjjjjjj'],
                 [('mem',)         , '00010aa0 111001mm jjjjjjjj jjjjjjjj']]],
 
-    ['JNZ',    [[('lab',  'reg')  , 'rrr01000 01000000 jjjjjjjj'],
+    ['jnz',    [[('lab',  'reg')  , 'rrr01000 01000000 jjjjjjjj'],
                 [('lab',  'memo') , '00001011 111000mm oooooooo jjjjjjjj'],
                 [('lab',  'mem')  , '00001aa1 111000mm jjjjjjjj']]],
 
-    ['LJNZ',   [[('lab',  'reg')  , 'rrr10000 01000000 jjjjjjjj jjjjjjjj'],
+    ['ljnz',   [[('lab',  'reg')  , 'rrr10000 01000000 jjjjjjjj jjjjjjjj'],
                 [('lab',  'memo') , '00010011 111000mm oooooooo jjjjjjjj jjjjjjjj'],
                 [('lab',  'mem')  , '00010aa1 111000mm jjjjjjjj jjjjjjjj']]],
 
-    ['JNZB',   [[('memo',)        , '00001010 111000mm oooooooo jjjjjjjj'],
+    ['jnzb',   [[('memo',)        , '00001010 111000mm oooooooo jjjjjjjj'],
                 [('mem',)         , '00001aa0 111000mm jjjjjjjj']]],
 
-    ['LJNZB',  [[('memo',)        , '00010010 111000mm oooooooo jjjjjjjj jjjjjjjj'],
+    ['ljnzb',  [[('memo',)        , '00010010 111000mm oooooooo jjjjjjjj jjjjjjjj'],
                 [('mem',)         , '00010aa0 111000mm jjjjjjjj jjjjjjjj']]],
 
-    ['JMCE',   [[('memo',)        , '00001010 101100mm oooooooo jjjjjjjj'],
+    ['jmce',   [[('memo',)        , '00001010 101100mm oooooooo jjjjjjjj'],
                 [('mem',)         , '00001aa0 101100mm jjjjjjjj']]],
 
-    ['LJMCE',  [[('memo',)        , '00010010 101100mm oooooooo jjjjjjjj jjjjjjjj'],
+    ['ljmce',  [[('memo',)        , '00010010 101100mm oooooooo jjjjjjjj jjjjjjjj'],
                 [('mem',)         , '00010aa0 101100mm jjjjjjjj jjjjjjjj']]],
 
-    ['JMCNE',  [[('memo',)        , '00001010 101101mm oooooooo jjjjjjjj'],
+    ['jmcne',  [[('memo',)        , '00001010 101101mm oooooooo jjjjjjjj'],
                 [('mem',)         , '00001aa0 101101mm jjjjjjjj']]],
 
-    ['LJMCNE', [[('memo',)        , '00010010 101101mm oooooooo jjjjjjjj jjjjjjjj'],
+    ['ljmcne', [[('memo',)        , '00010010 101101mm oooooooo jjjjjjjj jjjjjjjj'],
                 [('mem',)         , '00010aa0 101101mm jjjjjjjj jjjjjjjj']]],
 
-    ['JBT',    [[('memo',)        , 'bbb01010 101111mm oooooooo jjjjjjjj'],
+    ['jbt',    [[('memo',)        , 'bbb01010 101111mm oooooooo jjjjjjjj'],
                 [('mem',)         , 'bbb01aa0 101111mm jjjjjjjj']]],
 
-    ['LJBT',   [[('memo',)        , 'bbb10010 101111mm oooooooo jjjjjjjj jjjjjjjj'],
+    ['ljbt',   [[('memo',)        , 'bbb10010 101111mm oooooooo jjjjjjjj jjjjjjjj'],
                 [('mem',)         , 'bbb10aa0 101111mm jjjjjjjj jjjjjjjj']]],
 
-    ['JNBT',   [[('memo',)        , 'bbb01010 101110mm oooooooo jjjjjjjj'],
+    ['jnbt',   [[('memo',)        , 'bbb01010 101110mm oooooooo jjjjjjjj'],
                 [('mem',)         , 'bbb01aa0 101110mm jjjjjjjj']]],
 
-    ['LJNBT',  [[('memo',)        , 'bbb10010 101110mm oooooooo jjjjjjjj jjjjjjjj'],
+    ['ljnbt',  [[('memo',)        , 'bbb10010 101110mm oooooooo jjjjjjjj jjjjjjjj'],
                 [('mem',)         , 'bbb10aa0 101110mm jjjjjjjj jjjjjjjj']]],
 
-    ['TSL',    [[('memo',)        , '00011010 100101mm oooooooo iiiiiiii jjjjjjjj'],
+    ['tsl',    [[('memo',)        , '00011010 100101mm oooooooo iiiiiiii jjjjjjjj'],
                 [('mem',)         , '00011aa0 100101mm iiiiiiii jjjjjjjj']]],
 
-    ['WID',    [[()               , '1sd00000 00000000']]],
+    ['wid',    [[()               , '1sd00000 00000000']]],
 
-    ['XFER',   [[()               , '01100000 00000000']]],
+    ['xfer',   [[()               , '01100000 00000000']]],
 
-    ['SINTR',  [[()               , '01000000 00000000']]],
+    ['sintr',  [[()               , '01000000 00000000']]],
 
-    ['HLT',    [[()               , '00100000 01001000']]],
+    ['hlt',    [[()               , '00100000 01001000']]],
 
-    ['NOP',    [[()               , '00000000 00000000']]]
+    ['nop',    [[()               , '00000000 00000000']]]
 ]
 
 
@@ -329,7 +329,7 @@ def opcode_match(fw, pc, op):
 
     # 'j' jump target field is relative to address of next instruction
     if 'j' in fields:
-        fields['j'] += pc + l
+        fields['j'] = (fields['j'] + pc + l) & 0xffff
 
     return len(op.bits), fields
 
@@ -360,9 +360,9 @@ def disassemble_inst(fw, pc):
     try:
         length, op, fields = opcode_search(fw, pc)
     except BadInstruction:
-        return 1, 'db %s' % ihex(fw[pc]), {}
+        return 1, 'db     %s' % ihex(fw[pc]), {}
 
-    s = op.mnem
+    s = '%-6s' % op.mnem
     for f in fields:
         s += ' %s:%x' % (f, fields[f])
     return length, s, fields
