@@ -18,6 +18,8 @@ import argparse
 import sys
 from collections import namedtuple
 
+from intelhex import IntelHex
+
 Op = namedtuple('Op', ['mnem', 'form', 'bits', 'mask', 'fields'])
 
 # where two operands are listed, first is source, second is dest
@@ -397,6 +399,7 @@ def pass2(fw, symtab_by_value, show_obj = False, output_file = sys.stdout):
         pc += length
         output_file.write(s + '\n')
     
+
 def disassemble(fw, show_obj = False, output_file = sys.stdout):
     symtab_by_value = pass1(fw)
     #symtab_by_name = { v: k for k, v in symtab_by_value.items() }
@@ -404,22 +407,70 @@ def disassemble(fw, show_obj = False, output_file = sys.stdout):
     pass2(fw, symtab_by_value, show_obj = show_obj, output_file = output_file)
 
 
+def read_object(input, inputformat = 'binary'):
+    if inputformat == 'binary':
+        fwl = [f.read() for f in args.input]
+    elif inputformat == 'hex':
+        fwl = [IntelHex(f).read() for f in args.input]
+    else:
+        raise Exception('unknown input format')
+    minl = min([len(f) for f in fwl])
+
+    i = 0
+    fw = bytearray(minl * len(fwl))
+    for j in range(minl):
+        for k in range(len(input)):
+            try:
+                fw[i] = fwl[k][j]
+            except Exception as e:
+                print(e)
+                print('i: %d, j:%d, k:%d' % (i, j, k))
+            i += 1
+
+    return fw
+
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description = 'Disassembler for Intel 8089 I/O processor')
+
     parser.add_argument('-l', '--listing', action='store_true',
                         help = 'generate output in listing format')
-    parser.add_argument('binary_file', type = argparse.FileType('rb'),
-                        help = 'raw binary file containing 8089 code')
-    parser.add_argument('output_file', type=argparse.FileType('w'),
-                        nargs = '?',
+
+    parser.add_argument('-b', '--base', type = int, default = 0,
+                        help = 'base address of image (default: %(default)s)')
+    parser.add_argument('--length', type = int,
+                        help = 'length of image')
+
+    fmt_group = parser.add_mutually_exclusive_group()
+    fmt_group.add_argument('--binary', action='store_const',
+                           dest='inputformat',
+                           const='binary',
+                           help = 'input file format is raw binary (default)')
+    fmt_group.add_argument('--hex', action='store_const',
+                           dest='inputformat',
+                           const='hex',
+                           help = 'input file format is Intel hex')
+    
+    parser.add_argument('input', type = argparse.FileType('rb'),
+                        nargs = '+',
+                        help = 'input file(s), multiple files will be interleaved (useful for separate even, odd files)')
+
+    parser.add_argument('-o', '--output', type=argparse.FileType('w'),
                         default = sys.stdout,
                         help = 'disassembly output file')
+
     args = parser.parse_args()
+    print(args)
 
     opcode_init()
     #opcode_table_print()
 
-    fw = bytearray(args.binary_file.read())
-    args.binary_file.close()
+    if args.inputformat is None:
+        args.inputformat = 'binary'
 
-    disassemble(fw, show_obj = args.listing, output_file = args.output_file)
+    fw = read_object(args.input, args.inputformat)
+
+    if args.length is None:
+        args.length = len(fw)
+
+    disassemble(fw, show_obj = args.listing, output_file = args.output)
