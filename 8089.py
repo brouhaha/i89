@@ -369,25 +369,28 @@ def disassemble_inst(fw, pc):
         s += ' %s:%x' % (f, fields[f])
     return length, s, fields
 
-def pass1(fw):
+def pass1(fw, base, length):
+    print('base:   %04x' % base)
+    print('length: %04x' % length)
     symtab_by_value = {}
-    pc = 0
-    while pc < len(fw) - 2:
-        (length, dis, fields) = disassemble_inst(fw, pc)
+    pc = base
+    while pc < base + length - 2:
+        (inst_length, dis, fields) = disassemble_inst(fw, pc)
         if 'j' in fields:
             symtab_by_value[fields['j']] = 'x%04x' % fields['j']
-        pc += length
+        pc += inst_length
     return symtab_by_value
 
-def pass2(fw, symtab_by_value, show_obj = False, output_file = sys.stdout):
-    pc = 0
-    while pc < len(fw) - 2:
+def pass2(fw, base, length,
+          symtab_by_value, show_obj = False, output_file = sys.stdout):
+    pc = base
+    while pc < base + length - 2:
         s = ''
-        (length, dis, fields) = disassemble_inst(fw, pc)
+        (inst_length, dis, fields) = disassemble_inst(fw, pc)
         if show_obj:
             s += '%04x: '% pc
             for i in range(6):
-                if (i < length):
+                if (i < inst_length):
                     s += '%02x ' % fw[pc + i]
                 else:
                     s += '   '
@@ -396,18 +399,18 @@ def pass2(fw, symtab_by_value, show_obj = False, output_file = sys.stdout):
         else:
             label = ''
         s += '%-8s%s' % (label, dis)
-        pc += length
+        pc += inst_length
         output_file.write(s + '\n')
     
 
-def disassemble(fw, show_obj = False, output_file = sys.stdout):
-    symtab_by_value = pass1(fw)
+def disassemble(fw, show_obj = False, output_file = sys.stdout,
+                base = 0, length = 0x10000):
+    symtab_by_value = pass1(fw, base, length)
     #symtab_by_name = { v: k for k, v in symtab_by_value.items() }
+    pass2(fw, base, length, symtab_by_value, show_obj = show_obj, output_file = output_file)
 
-    pass2(fw, symtab_by_value, show_obj = show_obj, output_file = output_file)
 
-
-def read_object(input, inputformat = 'binary'):
+def read_object(input, inputformat = 'binary', base = 0, length = None):
     if inputformat == 'binary':
         fwl = [f.read() for f in args.input]
     elif inputformat == 'hex':
@@ -417,7 +420,7 @@ def read_object(input, inputformat = 'binary'):
     minl = min([len(f) for f in fwl])
 
     i = 0
-    fw = bytearray(minl * len(fwl))
+    fw = bytearray(0x10000)
     for j in range(minl):
         for k in range(len(input)):
             try:
@@ -426,8 +429,15 @@ def read_object(input, inputformat = 'binary'):
                 print(e)
                 print('i: %d, j:%d, k:%d' % (i, j, k))
             i += 1
+            if length is not None and i >= base + length:
+                return fw
+    return fw[:minl*len(input)]
 
-    return fw
+
+# type function for argparse to support numeric arguments in hexadecimal
+# ("0x" prefix) as well as decimal (no prefix)
+def auto_int(x):
+    return int(x, 0)
 
 
 if __name__ == '__main__':
@@ -436,9 +446,9 @@ if __name__ == '__main__':
     parser.add_argument('-l', '--listing', action='store_true',
                         help = 'generate output in listing format')
 
-    parser.add_argument('-b', '--base', type = int, default = 0,
-                        help = 'base address of image (default: %(default)s)')
-    parser.add_argument('--length', type = int,
+    parser.add_argument('-b', '--base', type = auto_int, default = 0,
+                        help = 'base address of image (default: %(default)x)')
+    parser.add_argument('--length', type = auto_int,
                         help = 'length of image')
 
     fmt_group = parser.add_mutually_exclusive_group()
@@ -468,9 +478,15 @@ if __name__ == '__main__':
     if args.inputformat is None:
         args.inputformat = 'binary'
 
-    fw = read_object(args.input, args.inputformat)
-
+    fw = read_object(args.input, args.inputformat, base = args.base, length = args.length)
     if args.length is None:
         args.length = len(fw)
+    print('args.base:   %04x' % args.base)
+    print('args.length: %04x' % args.length)
 
-    disassemble(fw, show_obj = args.listing, output_file = args.output)
+    if args.base != 0:
+        fw = bytearray(args.base) + fw
+
+    disassemble(fw, show_obj = args.listing, output_file = args.output,
+                base = args.base,
+                length = args.length)

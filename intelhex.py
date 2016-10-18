@@ -97,5 +97,5 @@ class IntelHex:
         except EOFError as e:
             pass
 
-        return self.ba
+        return self.ba[:self.ba_index]
 
