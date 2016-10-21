@@ -24,10 +24,10 @@ class I89:
     # The destination operand precedes the source operand(s).
     __inst_set = [
         # JMP is ADDBI with rrr=100 (TP), put earlier than ADDBI in table
-        ['jmp',    [[('lab',)         , '10001000 00100000 jjjjjjjj']]],
+        ['jmp',    [[('jmp',)         , '10001000 00100000 jjjjjjjj']]],
 
         # LJMP is ADDI with rrr=100 (TP), put earlier than ADDI in table
-        ['ljmp',   [[('lab',)         , '10010001 00100000 jjjjjjjj jjjjjjjj']]],
+        ['ljmp',   [[('jmp',)         , '10010001 00100000 jjjjjjjj jjjjjjjj']]],
     
         ['mov',    [[('reg',  'memo') , 'rrr00011 100000mm oooooooo'],
                     [('reg',  'mem')  , 'rrr00aa1 100000mm'],
@@ -47,13 +47,13 @@ class I89:
                     [('memo2','mem')  , '00000aa0 100100mm/00000010 110011mm oooooooo'],
                     [('mem2', 'mem')  , '00000aa0 100100mm/00000aa0 110011mm']]],
 
-        ['movbi',  [[('reg',  'i8')   , 'rrr01000 00110000 iiiiiiii'],
-                    [('memo', 'i8')   , '00001010 010011mm oooooooo iiiiiiii'],
-                    [('mem',  'i8')   , '00001aa0 010011mm iiiiiiii']]],
+        ['movbi',  [[('reg',  'imm')  , 'rrr01000 00110000 iiiiiiii'],
+                    [('memo', 'imm')  , '00001010 010011mm oooooooo iiiiiiii'],
+                    [('mem',  'imm')  , '00001aa0 010011mm iiiiiiii']]],
 
-        ['movi',   [[('reg',  'i16')  , 'rrr10001 00110000 iiiiiiii iiiiiiii'],
-                    [('memo', 'i16')  , '00010011 010011mm oooooooo iiiiiiii iiiiiiii'],
-                    [('mem',  'i16')  , '00010aa1 010011mm iiiiiiii iiiiiiii']]],
+        ['movi',   [[('reg',  'imm')  , 'rrr10001 00110000 iiiiiiii iiiiiiii'],
+                    [('memo', 'imm')  , '00010011 010011mm oooooooo iiiiiiii iiiiiiii'],
+                    [('mem',  'imm')  , '00010aa1 010011mm iiiiiiii iiiiiiii']]],
 
         ['movp',   [[('preg', 'memo') , 'ppp00011 100011mm oooooooo'],
                     [('preg', 'mem')  , 'ppp00aa1 100011mm'],
@@ -76,13 +76,13 @@ class I89:
                     [('memo', 'reg')  , 'rrr00010 110100mm oooooooo'],
                     [('mem',  'reg')  , 'rrr00aa0 110100mm']]],
 
-        ['addi',   [[('reg',  'i16')  , 'rrr10001 00100000 iiiiiiii iiiiiiii'],
-                    [('memo', 'i16')  , '00010011 110000mm oooooooo iiiiiiii iiiiiiii'],
-                    [('mem',  'i16')  , '00010aa1 110000mm iiiiiiii iiiiiiii']]],
+        ['addi',   [[('reg',  'imm')  , 'rrr10001 00100000 iiiiiiii iiiiiiii'],
+                    [('memo', 'imm')  , '00010011 110000mm oooooooo iiiiiiii iiiiiiii'],
+                    [('mem',  'imm')  , '00010aa1 110000mm iiiiiiii iiiiiiii']]],
 
-        ['addbi',  [[('reg',  'i8')   , 'rrr01000 00100000 iiiiiiii'],
-                    [('memo', 'i8')   , '00001010 110000mm oooooooo iiiiiiii'],
-                    [('mem',  'i8')   , '00001aa0 110000mm iiiiiiii']]],
+        ['addbi',  [[('reg',  'imm')  , 'rrr01000 00100000 iiiiiiii'],
+                    [('memo', 'imm')  , '00001010 110000mm oooooooo iiiiiiii'],
+                    [('mem',  'imm')  , '00001aa0 110000mm iiiiiiii']]],
 
         ['inc',    [[('reg',)         , 'rrr00000 00111000'],
                     [('memo',)        , '00000011 111010mm oooooooo'],
@@ -108,13 +108,13 @@ class I89:
                     [('memo', 'reg')  , 'rrr00010 110110mm oooooooo'],
                     [('mem',  'reg')  , 'rrr00aa0 110110mm']]],
 
-        ['andi',   [[('reg',  'i16')  , 'rrr10001 00101000 iiiiiiii iiiiiiii'],
-                    [('memo', 'i16')  , '00010011 110010mm oooooooo iiiiiiii iiiiiiii'],
-                    [('mem',  'i16')  , '00010aa1 110010mm iiiiiiii iiiiiiii']]],
+        ['andi',   [[('reg',  'imm')  , 'rrr10001 00101000 iiiiiiii iiiiiiii'],
+                    [('memo', 'imm')  , '00010011 110010mm oooooooo iiiiiiii iiiiiiii'],
+                    [('mem',  'imm')  , '00010aa1 110010mm iiiiiiii iiiiiiii']]],
 
-        ['andbi',  [[('reg',  'i8')   , 'rrr01000 00101000 iiiiiiii'],
-                    [('memo', 'i8')   , '00001010 110010mm oooooooo iiiiiiii'],
-                    [('mem',  'i8')   , '00001aa0 110010mm iiiiiiii']]],
+        ['andbi',  [[('reg',  'imm')  , 'rrr01000 00101000 iiiiiiii'],
+                    [('memo', 'imm')  , '00001010 110010mm oooooooo iiiiiiii'],
+                    [('mem',  'imm')  , '00001aa0 110010mm iiiiiiii']]],
 
         ['or',     [[('reg',  'memo') , 'rrr00011 101001mm oooooooo'],
                     [('reg',  'mem')  , 'rrr00aa1 101001mm'],
@@ -126,13 +126,13 @@ class I89:
                     [('memo', 'reg')  , 'rrr00010 110101mm oooooooo'],
                     [('mem',  'reg')  , 'rrr00aa0 110101mm']]],
 
-        ['ori',    [[('reg',  'i16')  , 'rrr10001 00100100 iiiiiiii iiiiiiii'],
-                    [('memo', 'i16')  , '00010011 110001mm oooooooo iiiiiiii iiiiiiii'],
-                    [('mem',  'i16')  , '00010aa1 110001mm iiiiiiii iiiiiiii']]],
+        ['ori',    [[('reg',  'imm')  , 'rrr10001 00100100 iiiiiiii iiiiiiii'],
+                    [('memo', 'imm')  , '00010011 110001mm oooooooo iiiiiiii iiiiiiii'],
+                    [('mem',  'imm')  , '00010aa1 110001mm iiiiiiii iiiiiiii']]],
 
-        ['orbi',   [[('reg',  'i8')   , 'rrr01000 00100100 iiiiiiii'],
-                    [('memo', 'i8')   , '00001010 110001mm oooooooo iiiiiiii'],
-                    [('mem',  'i8')   , '00001aa0 110001mm iiiiiiii']]],
+        ['orbi',   [[('reg',  'imm')  , 'rrr01000 00100100 iiiiiiii'],
+                    [('memo', 'imm')  , '00001010 110001mm oooooooo iiiiiiii'],
+                    [('mem',  'imm')  , '00001aa0 110001mm iiiiiiii']]],
 
         ['not',    [[('reg',)         , 'rrr00000 00101100'],
                     [('memo',)        , '00000011 110111mm oooooooo'],
@@ -151,66 +151,66 @@ class I89:
         ['clr',    [[('memo', 'bit')  , 'bbb00010 111110mm oooooooo'],
                     [('mem',  'bit')  , 'bbb00aa0 111110mm']]],
 
-        ['call',   [[('memo', 'lab')  , '10001011 100111mm oooooooo jjjjjjjj'],
-                    [('mem',  'lab')  , '10001aa1 100111mm jjjjjjjj']]],
+        ['call',   [[('memo', 'jmp')  , '10001011 100111mm oooooooo jjjjjjjj'],
+                    [('mem',  'jmp')  , '10001aa1 100111mm jjjjjjjj']]],
 
-        ['lcall',  [[('memo', 'lab')  , '10010011 100111mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [('mem',  'lab')  , '10010aa1 100111mm jjjjjjjj jjjjjjjj']]],
+        ['lcall',  [[('memo', 'jmp')  , '10010011 100111mm oooooooo jjjjjjjj jjjjjjjj'],
+                    [('mem',  'jmp')  , '10010aa1 100111mm jjjjjjjj jjjjjjjj']]],
 
-        ['jz',     [[('reg',  'lab')  , 'rrr01000 01000100 jjjjjjjj'],
-                    [('memo', 'lab')  , '00001011 111001mm oooooooo jjjjjjjj'],
-                    [('mem',  'lab')  , '00001aa1 111001mm jjjjjjjj']]],
+        ['jz',     [[('reg',  'jmp')  , 'rrr01000 01000100 jjjjjjjj'],
+                    [('memo', 'jmp')  , '00001011 111001mm oooooooo jjjjjjjj'],
+                    [('mem',  'jmp')  , '00001aa1 111001mm jjjjjjjj']]],
 
-        ['ljz',    [[('reg',  'lab')  , 'rrr10000 01000100 jjjjjjjj jjjjjjjj'],
-                    [('memo', 'lab')  , '00010011 111001mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [('mem',  'lab')  , '00010aa1 111001mm jjjjjjjj jjjjjjjj']]],
+        ['ljz',    [[('reg',  'jmp')  , 'rrr10000 01000100 jjjjjjjj jjjjjjjj'],
+                    [('memo', 'jmp')  , '00010011 111001mm oooooooo jjjjjjjj jjjjjjjj'],
+                    [('mem',  'jmp')  , '00010aa1 111001mm jjjjjjjj jjjjjjjj']]],
 
-        ['jzb',    [[('memo', 'lab')  , '00001010 111001mm oooooooo jjjjjjjj'],
-                    [('mem',  'lab')  , '00001aa0 111001mm jjjjjjjj']]],
+        ['jzb',    [[('memo', 'jmp')  , '00001010 111001mm oooooooo jjjjjjjj'],
+                    [('mem',  'jmp')  , '00001aa0 111001mm jjjjjjjj']]],
 
-        ['ljzb',   [[('memo', 'lab')  , '00010010 111001mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [('mem',  'lab')  , '00010aa0 111001mm jjjjjjjj jjjjjjjj']]],
+        ['ljzb',   [[('memo', 'jmp')  , '00010010 111001mm oooooooo jjjjjjjj jjjjjjjj'],
+                    [('mem',  'jmp')  , '00010aa0 111001mm jjjjjjjj jjjjjjjj']]],
 
-        ['jnz',    [[('reg',  'lab')  , 'rrr01000 01000000 jjjjjjjj'],
-                    [('memo', 'lab')  , '00001011 111000mm oooooooo jjjjjjjj'],
-                    [('mem',  'lab')  , '00001aa1 111000mm jjjjjjjj']]],
+        ['jnz',    [[('reg',  'jmp')  , 'rrr01000 01000000 jjjjjjjj'],
+                    [('memo', 'jmp')  , '00001011 111000mm oooooooo jjjjjjjj'],
+                    [('mem',  'jmp')  , '00001aa1 111000mm jjjjjjjj']]],
 
-        ['ljnz',   [[('reg',  'lab')  , 'rrr10000 01000000 jjjjjjjj jjjjjjjj'],
-                    [('memo', 'lab')  , '00010011 111000mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [('mem',  'lab')  , '00010aa1 111000mm jjjjjjjj jjjjjjjj']]],
+        ['ljnz',   [[('reg',  'jmp')  , 'rrr10000 01000000 jjjjjjjj jjjjjjjj'],
+                    [('memo', 'jmp')  , '00010011 111000mm oooooooo jjjjjjjj jjjjjjjj'],
+                    [('mem',  'jmp')  , '00010aa1 111000mm jjjjjjjj jjjjjjjj']]],
 
-        ['jnzb',   [[('memo', 'lab')  , '00001010 111000mm oooooooo jjjjjjjj'],
-                    [('mem',  'lab')  , '00001aa0 111000mm jjjjjjjj']]],
+        ['jnzb',   [[('memo', 'jmp')  , '00001010 111000mm oooooooo jjjjjjjj'],
+                    [('mem',  'jmp')  , '00001aa0 111000mm jjjjjjjj']]],
 
-        ['ljnzb',  [[('memo', 'lab')  , '00010010 111000mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [('mem',  'lab')  , '00010aa0 111000mm jjjjjjjj jjjjjjjj']]],
+        ['ljnzb',  [[('memo', 'jmp')  , '00010010 111000mm oooooooo jjjjjjjj jjjjjjjj'],
+                    [('mem',  'jmp')  , '00010aa0 111000mm jjjjjjjj jjjjjjjj']]],
 
-        ['jmce',   [[('memo', 'lab')  , '00001010 101100mm oooooooo jjjjjjjj'],
-                    [('mem',  'lab')  , '00001aa0 101100mm jjjjjjjj']]],
+        ['jmce',   [[('memo', 'jmp')  , '00001010 101100mm oooooooo jjjjjjjj'],
+                    [('mem',  'jmp')  , '00001aa0 101100mm jjjjjjjj']]],
 
-        ['ljmce',  [[('memo', 'lab')  , '00010010 101100mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [('mem',  'lab')  , '00010aa0 101100mm jjjjjjjj jjjjjjjj']]],
+        ['ljmce',  [[('memo', 'jmp')  , '00010010 101100mm oooooooo jjjjjjjj jjjjjjjj'],
+                    [('mem',  'jmp')  , '00010aa0 101100mm jjjjjjjj jjjjjjjj']]],
 
-        ['jmcne',  [[('memo', 'lab')  , '00001010 101101mm oooooooo jjjjjjjj'],
-                    [('mem',  'lab')  , '00001aa0 101101mm jjjjjjjj']]],
+        ['jmcne',  [[('memo', 'jmp')  , '00001010 101101mm oooooooo jjjjjjjj'],
+                    [('mem',  'jmp')  , '00001aa0 101101mm jjjjjjjj']]],
 
-        ['ljmcne', [[('memo', 'lab')  , '00010010 101101mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [('mem',  'lab')  , '00010aa0 101101mm jjjjjjjj jjjjjjjj']]],
+        ['ljmcne', [[('memo', 'jmp')  , '00010010 101101mm oooooooo jjjjjjjj jjjjjjjj'],
+                    [('mem',  'jmp')  , '00010aa0 101101mm jjjjjjjj jjjjjjjj']]],
 
-        ['jbt',    [[('memo', 'bit', 'lab'), 'bbb01010 101111mm oooooooo jjjjjjjj'],
-                    [('mem',  'bit', 'lab'), 'bbb01aa0 101111mm jjjjjjjj']]],
+        ['jbt',    [[('memo', 'bit', 'jmp'), 'bbb01010 101111mm oooooooo jjjjjjjj'],
+                    [('mem',  'bit', 'jmp'), 'bbb01aa0 101111mm jjjjjjjj']]],
 
-        ['ljbt',   [[('memo', 'bit', 'lab'), 'bbb10010 101111mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [('mem',  'bit', 'lab'), 'bbb10aa0 101111mm jjjjjjjj jjjjjjjj']]],
+        ['ljbt',   [[('memo', 'bit', 'jmp'), 'bbb10010 101111mm oooooooo jjjjjjjj jjjjjjjj'],
+                    [('mem',  'bit', 'jmp'), 'bbb10aa0 101111mm jjjjjjjj jjjjjjjj']]],
 
-        ['jnbt',   [[('memo', 'bit', 'lab'), 'bbb01010 101110mm oooooooo jjjjjjjj'],
-                    [('mem',  'bit', 'lab'), 'bbb01aa0 101110mm jjjjjjjj']]],
+        ['jnbt',   [[('memo', 'bit', 'jmp'), 'bbb01010 101110mm oooooooo jjjjjjjj'],
+                    [('mem',  'bit', 'jmp'), 'bbb01aa0 101110mm jjjjjjjj']]],
 
-        ['ljnbt',  [[('memo', 'bit', 'lab'), 'bbb10010 101110mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [('mem',  'bit', 'lab'), 'bbb10aa0 101110mm jjjjjjjj jjjjjjjj']]],
+        ['ljnbt',  [[('memo', 'bit', 'jmp'), 'bbb10010 101110mm oooooooo jjjjjjjj jjjjjjjj'],
+                    [('mem',  'bit', 'jmp'), 'bbb10aa0 101110mm jjjjjjjj jjjjjjjj']]],
 
-        ['tsl',    [[('memo', 'i8',  'lab'), '00011010 100101mm oooooooo iiiiiiii jjjjjjjj'],
-                    [('mem',  'i8',  'lab'), '00011aa0 100101mm iiiiiiii jjjjjjjj']]],
+        ['tsl',    [[('memo', 'imm', 'jmp'), '00011010 100101mm oooooooo iiiiiiii jjjjjjjj'],
+                    [('mem',  'imm', 'jmp'), '00011aa0 100101mm iiiiiiii jjjjjjjj']]],
 
         ['wid',    [[('wids', 'widd') , '1sd00000 00000000']]],
 
@@ -316,11 +316,15 @@ class I89:
 
     @staticmethod
     def __extract_field(inst, op, f):
+        width = 0
         v = 0
         for i in reversed(range(min(len(inst), len(op.fields[f])))):
             for j in reversed(range(8)):
                 if op.fields[f][i] & (1 << j):
                     v = (v << 1) | ((inst[i] >> j) & 1)
+                    width += 1
+        if width == 8 and v > 127 and (f == 'i' or f == 'j'):
+            v += (65536 - 256)
         return v
 
 
@@ -338,7 +342,7 @@ class I89:
             fields[f] = self.__extract_field(inst, op, f)
 
         # 'j' jump target field is relative to address of next instruction
-        if 'j' in fields:
+        if 'j' in op.fields:
             fields['j'] = (fields['j'] + pc + l) & 0xffff
 
         return len(op.bits), fields
@@ -397,7 +401,7 @@ class I89:
         if disassemble_operands:
             ftemp = fields.copy()
             for operand in op.operands:
-                if operand == 'lab':
+                if operand == 'jmp':
                     target = ftemp['j']
                     del ftemp['j']
                     if target in symtab_by_value:
@@ -426,7 +430,7 @@ class I89:
                     value = self.__dis_mem_operand(ftemp, 2)
                 elif operand == 'mem2':
                     value = self.__dis_mem_operand(ftemp, 2)
-                elif operand == 'i8' or operand == 'i16':
+                elif operand == 'imm':
                     value = self.ihex(ftemp['i'])
                     del ftemp['i']
                 elif operand == 'i32':
