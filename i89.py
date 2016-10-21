@@ -18,7 +18,7 @@ from collections import namedtuple
 
 class I89:
 
-    __Op = namedtuple('Op', ['mnem', 'form', 'bits', 'mask', 'fields'])
+    __Op = namedtuple('Op', ['mnem', 'operands', 'bits', 'mask', 'fields'])
 
     # Follows Intel ASM89 assembler convention for operand ordering.
     # The destination operand precedes the source operand(s).
@@ -60,10 +60,10 @@ class I89:
                     [('memo', 'preg') , 'ppp00011 100110mm oooooooo'],
                     [('mem',  'preg') , 'ppp00aa1 100110mm']]],
 
-        ['lpd' ,   [[('ptr',  'memo',), 'ppp00011 100010mm oooooooo'],
-                    [('ptr',  'mem',) , 'ppp00aa1 100010mm']]],
+        ['lpd' ,   [[('preg', 'memo',), 'ppp00011 100010mm oooooooo'],
+                    [('preg', 'mem',) , 'ppp00aa1 100010mm']]],
     
-        ['lpdi',   [[('ptr',  'i32')  , 'ppp10001 00001000 iiiiiiii iiiiiiii ssssssss ssssssss']]],
+        ['lpdi',   [[('preg', 'i32')  , 'ppp10001 00001000 iiiiiiii iiiiiiii ssssssss ssssssss']]],
 
         ['add',    [[('reg',  'memo') , 'rrr00011 101000mm oooooooo'],
                     [('reg',  'mem')  , 'rrr00aa1 101000mm'],
@@ -212,7 +212,7 @@ class I89:
         ['tsl',    [[('memo', 'i8',  'lab'), '00011010 100101mm oooooooo iiiiiiii jjjjjjjj'],
                     [('mem',  'i8',  'lab'), '00011aa0 100101mm iiiiiiii jjjjjjjj']]],
 
-        ['wid',    [[()               , '1sd00000 00000000']]],
+        ['wid',    [[('wids', 'widd') , '1sd00000 00000000']]],
 
         ['xfer',   [[()               , '01100000 00000000']]],
 
@@ -231,9 +231,9 @@ class I89:
     #                    one (local)
     #        MOVP stores, loads full pointer including tag bit
     # BC, IX, CC, MC are 16-bit registers, only legal for r field
-    reg = [ 'GA', 'GB', 'GC', 'BC', 'TP', 'IX', 'CC', 'MC']
+    reg = [ 'ga', 'gb', 'gc', 'bc', 'tp', 'ix', 'cc', 'mc']
 
-    m_reg = ['GA', 'GB', 'GC', 'PP']
+    m_reg = ['ga', 'gb', 'gc', 'pp']
 
     @staticmethod
     def __byte_parse(bs, second_flag):
@@ -298,19 +298,19 @@ class I89:
 
     def __opcode_init(self):
         for mnem, details in self.__inst_set:
-            for form, encoding in details:
+            for operands, encoding in details:
                 bits, mask, fields = self.__encoding_parse(encoding)
                 opcode = bits[1] & 0xfc
                 if opcode not in self.__inst_by_opcode:
                     self.__inst_by_opcode[opcode] = []
-                self.__inst_by_opcode[opcode].append(self.__Op(mnem, form, bits, mask, fields))
-                #print(inst, form, "%02x" % opcode)
+                self.__inst_by_opcode[opcode].append(self.__Op(mnem, operands, bits, mask, fields))
+                #print(inst, operands, "%02x" % opcode)
 
 
     def _opcode_table_print(self):
         for opcode in sorted(self.__inst_by_opcode.keys()):
-            for mnem, form, bits, mask, fields in self.__inst_by_opcode[opcode]:
-                print("%02x:" % opcode, mnem, bits, mask, fields)
+            for mnem, operands, bits, mask, fields in self.__inst_by_opcode[opcode]:
+                print("%02x:" % opcode, mnem, operands, bits, mask, fields)
 
 
 
@@ -367,16 +367,84 @@ class I89:
             s = '0' + s
         return s
 
-    def disassemble_inst(self, fw, pc):
+    def __dis_mem_operand(self, fields, pos = 1):
+        suffix = ['', '', '2']
+        mode   = fields['a' + suffix[pos]]
+        mreg   = fields['m' + suffix[pos]]
+        del fields['a' + suffix[pos]], fields ['m' + suffix[pos]]
+        s = '[' + self.m_reg[mreg]
+        if mode == 0:
+            return  s + ']'
+        elif mode == 1:
+            offset = fields['o' + suffix[pos]]
+            del fields['o' + suffix[pos]]
+            return s + '].' + self.ihex(offset)
+        elif mode == 2:
+            return s + '+ix]'
+        else:  # mode == 3
+            return s + '+ix+]'
+            
+
+    def disassemble_inst(self, fw, pc, symtab_by_value = {}, disassemble_operands = True):
         try:
             length, op, fields = self.opcode_search(fw, pc)
         except I89.BadInstruction:
-            return 1, 'db     %s' % self.ihex(fw[pc]), {}
+            return 1, 'db      ', '%s' % self.ihex(fw[pc]), {}
 
         s = '%-6s' % op.mnem
-        for f in fields:
-            s += ' %s:%x' % (f, fields[f])
-        return length, s, fields
+        operands = []
+
+        if disassemble_operands:
+            ftemp = fields.copy()
+            for operand in op.operands:
+                if operand == 'lab':
+                    target = ftemp['j']
+                    del ftemp['j']
+                    if target in symtab_by_value:
+                        value = symtab_by_value[target]
+                    else:
+                        value = self.ihex(target)
+                elif operand == 'reg':
+                    value = self.reg[ftemp['r']]
+                    del ftemp['r']
+                elif operand == 'preg':
+                    p = ftemp['p']
+                    del ftemp['p']
+                    value = self.reg[p]
+                    if value not in ['ga', 'gb', 'gc', 'tp']:
+                        value += '_bad'
+                elif operand == 'bit':
+                    value = '%d' % ftemp['b']
+                    del ftemp['b']
+                elif operand == 'memo':
+                    ftemp ['a'] = 1
+                    value = self.__dis_mem_operand(ftemp)
+                elif operand == 'mem':
+                    value = self.__dis_mem_operand(ftemp)
+                elif operand == 'memo2':
+                    ftemp ['a2'] = 1
+                    value = self.__dis_mem_operand(ftemp, 2)
+                elif operand == 'mem2':
+                    value = self.__dis_mem_operand(ftemp, 2)
+                elif operand == 'i8' or operand == 'i16':
+                    value = self.ihex(ftemp['i'])
+                    del ftemp['i']
+                elif operand == 'i32':
+                    value = self.ihex(ftemp['s']) + ':' + self.ihex(ftemp['i'])
+                    del ftemp['s'], ftemp['i']
+                elif operand == 'wids':
+                    value = str([8, 16][ftemp['s']])
+                    del ftemp['s']
+                elif operand == 'widd':
+                    value = str([8, 16][ftemp['d']])
+                    del ftemp['d']
+                else:
+                    raise NotImplementedError('operand type ' + operand)
+                operands.append(value)
+            if ftemp:
+                raise NotImplementedError('leftover fields: ' + str(ftemp))
+
+        return length, s, ','.join(operands), fields
 
     def __init__(self):
         self.__inst_by_opcode = { }

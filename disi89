@@ -25,7 +25,7 @@ def pass1(i89, fw, base, length):
     symtab_by_value = {}
     pc = base
     while pc < base + length - 2:
-        (inst_length, dis, fields) = i89.disassemble_inst(fw, pc)
+        (inst_length, dis, operands, fields) = i89.disassemble_inst(fw, pc, disassemble_operands = False)
         if 'j' in fields:
             symtab_by_value[fields['j']] = 'x%04x' % fields['j']
         pc += inst_length
@@ -36,7 +36,7 @@ def pass2(i89, fw, base, length,
     pc = base
     while pc < base + length - 2:
         s = ''
-        (inst_length, dis, fields) = i89.disassemble_inst(fw, pc)
+        (inst_length, dis, operands, fields) = i89.disassemble_inst(fw, pc, symtab_by_value)
         if show_obj:
             s += '%04x: '% pc
             for i in range(6):
@@ -48,7 +48,7 @@ def pass2(i89, fw, base, length,
             label = symtab_by_value[pc] + ':'
         else:
             label = ''
-        s += '%-8s%s' % (label, dis)
+        s += '%-8s%-8s%s' % (label, dis, operands)
         pc += inst_length
         output_file.write(s + '\n')
     
