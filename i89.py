@@ -18,7 +18,7 @@ from collections import namedtuple
 
 class I89:
 
-    __Op = namedtuple('Op', ['mnem', 'operands', 'bits', 'mask', 'fields'])
+    Op = namedtuple('Op', ['mnem', 'operands', 'bits', 'mask', 'fields'])
 
     # Follows Intel ASM89 assembler convention for operand ordering.
     # The destination operand precedes the source operand(s).
@@ -230,10 +230,12 @@ class I89:
     #        MOV, MOVB, MOVI, MOVBI sign extend to 20 bits and set tag to
     #                    one (local)
     #        MOVP stores, loads full pointer including tag bit
-    # BC, IX, CC, MC are 16-bit registers, only legal for r field
-    reg = [ 'ga', 'gb', 'gc', 'bc', 'tp', 'ix', 'cc', 'mc']
+    # BC, IX, CC, MC are 16-bit registers, only legal for rrr field,
+    # but not for the ppp field
+    reg  = [ 'ga', 'gb', 'gc', 'bc', 'tp', 'ix', 'cc', 'mc']
 
-    m_reg = ['ga', 'gb', 'gc', 'pp']
+    # areg
+    areg = ['ga', 'gb', 'gc', 'pp']
 
     @staticmethod
     def __byte_parse(bs, second_flag):
@@ -298,12 +300,14 @@ class I89:
 
     def __opcode_init(self):
         for mnem, details in self.__inst_set:
+            if mnem not in self.__inst_by_mnemonic:
+                self.__inst_by_mnemonic[mnem] = details
             for operands, encoding in details:
                 bits, mask, fields = self.__encoding_parse(encoding)
                 opcode = bits[1] & 0xfc
                 if opcode not in self.__inst_by_opcode:
                     self.__inst_by_opcode[opcode] = []
-                self.__inst_by_opcode[opcode].append(self.__Op(mnem, operands, bits, mask, fields))
+                self.__inst_by_opcode[opcode].append(self.Op(mnem, operands, bits, mask, fields))
                 #print(inst, operands, "%02x" % opcode)
 
 
@@ -352,6 +356,11 @@ class I89:
         pass
 
 
+    def mnemonic_search(self, mnemonic):
+        if mnemonic not in self.__inst_by_mnemonic:
+            return None
+        return self.__inst_by_mnemonic[mnemonic]
+
     def opcode_search(self, fw, pc):
         opcode = fw[pc+1] & 0xfc
         if opcode not in self.__inst_by_opcode:
@@ -376,7 +385,7 @@ class I89:
         mode   = fields['a' + suffix[pos]]
         mreg   = fields['m' + suffix[pos]]
         del fields['a' + suffix[pos]], fields ['m' + suffix[pos]]
-        s = '[' + self.m_reg[mreg]
+        s = '[' + self.areg[mreg]
         if mode == 0:
             return  s + ']'
         elif mode == 1:
@@ -452,6 +461,7 @@ class I89:
 
     def __init__(self):
         self.__inst_by_opcode = { }
+        self.__inst_by_mnemonic = { }
         self.__opcode_init()
 
 if __name__ == '__main__':
