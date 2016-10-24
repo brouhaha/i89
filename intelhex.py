@@ -14,6 +14,8 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from memory import Memory
+
 class IntelHex:
 
     class BadChecksum(Exception):
@@ -25,17 +27,6 @@ class IntelHex:
     class Discontiguous(Exception):
         pass
     
-    def __init__(self, f):
-        if type(f) is str:
-            self.f = open(f, 'rb')
-        else:
-            self.f = f
-        self.b = []
-        self.rn = 0
-        self.expected_addr = None
-        self.ba_index = 0
-        self.ba = bytearray(65536)
-
     def get_bytes(self, count):
         s = self.f.read(2*count)
         if len(s) != 2*count:
@@ -76,11 +67,13 @@ class IntelHex:
         if checksum != expected_checksum:
             raise IntelHex.BadChecksum('Bad checksum for record #%d' % self.rn)
         if rec_type == 0x00:  # data
+            if self.load_addr is None:
+                self.load_addr = addr
             if self.expected_addr is not None and self.expected_addr != addr:
                 raise IntelHex.Discontiguous('Unexpected address for data record #%d' % self.rn)
-            self.ba[self.ba_index:self.ba_index+data_length] = data
+            self.memory[self.load_addr:self.load_addr+data_length] = data
             self.expected_addr = addr + data_length
-            self.ba_index += data_length
+            self.load_addr += data_length
 
         elif rec_type == 0x01:  # end of file
             raise EOFError()  # end of file
@@ -89,13 +82,57 @@ class IntelHex:
         return True
 
 
-    def read(self):
-        l = []
+    # If memory is not provided, a new Memory will be allocated.
+    # If load_addr is provided, it will be used in place of the addresses
+    # in the hex file.
+    def read(self, f, memory = None, load_addr = None):
+        self.f = f
+        if memory is None:
+            self.memory = Memory(0x10000)
+        else:
+            self.memory = memory
+
+        self.load_addr = load_addr
+
+        self.expected_addr = None
         try:
             while True:
                 self.get_record()
         except EOFError as e:
             pass
 
-        return self.ba[:self.ba_index]
+        if memory is None:
+            self.memory.truncate()
+        return self.memory
 
+
+    def __write_record(self, f, addr, rec_type, data):
+        raw_data = bytearray([len(data), addr >> 8, addr & 0xff, rec_type]) + data
+        checksum = ((sum(raw_data) ^ 0xff) + 1) & 0xff
+        raw_data += bytearray([checksum])
+        s = ':' + ''.join(['%02x' % b for b in raw_data])
+        print(s, file = f)
+
+    def __write_range(self, f, memory, sl, data_bytes_per_line):
+        addr = sl.start
+        while addr < sl.stop:
+            l = data_bytes_per_line
+            if addr + l > sl.stop:
+                l = sl.stop - addr
+            self.__write_record(f, addr, 0x00, memory[addr:addr+l])
+            addr += l
+
+    def write(self, f, memory, data_bytes_per_line = 16):
+        self.f = f
+        self.memory = memory
+        addr = 0
+        while True:
+            try:
+                sl = self.memory.next_valid_range(addr)
+            except Memory.Uninitialized:
+                break
+            self.__write_range(f, memory, sl, data_bytes_per_line)
+            addr = sl.stop
+        self.__write_record(f, 0x0000, 0x01, bytearray([]))
+            
+        

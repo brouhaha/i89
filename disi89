@@ -60,28 +60,34 @@ def disassemble(i89, fw, show_obj = False, output_file = sys.stdout,
     pass2(i89, fw, base, length, symtab_by_value, show_obj = show_obj, output_file = output_file)
 
 
+def interleave(meml):
+    count = len(meml)
+
+    # the lengths of all the Memory supplied in the list must be the same
+    memlen = [len(mem) for mem in meml]
+    assert memlen.count(memlen[0]) == count
+
+    mem = Memory(size = memlen[0] * count)
+    for i in range(count):
+        mem[i::count] = meml[i]
+
+    return mem
+
+
 def read_object(input, inputformat = 'binary', base = 0, length = None):
     if inputformat == 'binary':
-        fwl = [f.read() for f in args.input]
+        meml = [Memory(data = f.read()) for f in args.input]
     elif inputformat == 'hex':
-        fwl = [IntelHex(f).read() for f in args.input]
+        meml = [IntelHex().read(f, load_addr = 0) for f in args.input]
     else:
         raise Exception('unknown input format')
-    minl = min([len(f) for f in fwl])
 
-    i = 0
-    fw = bytearray(0x10000)
-    for j in range(minl):
-        for k in range(len(input)):
-            try:
-                fw[i] = fwl[k][j]
-            except Exception as e:
-                print(e)
-                print('i: %d, j:%d, k:%d' % (i, j, k))
-            i += 1
-            if length is not None and i >= base + length:
-                return fw
-    return fw[:minl*len(input)]
+    if len(meml) == 1:
+        mem = meml[0]
+    else:
+        mem = interleave(meml)
+               
+    return mem
 
 
 # type function for argparse to support numeric arguments in hexadecimal
@@ -127,15 +133,12 @@ if __name__ == '__main__':
     if args.inputformat is None:
         args.inputformat = 'binary'
 
-    fw = read_object(args.input, args.inputformat, base = args.base, length = args.length)
+    memory = read_object(args.input, args.inputformat, base = args.base, length = args.length)
     if args.length is None:
-        args.length = len(fw)
+        args.length = len(memory)
 
     if args.base != 0:
-        fw = bytearray(args.base) + fw
-
-    memory = Memory()
-    memory[args.base:args.base + args.length] = fw
+        memory = memory(data = bytearray(args.base) + memory[:])
 
     disassemble(i89, memory, show_obj = args.listing, output_file = args.output,
                 base = args.base,

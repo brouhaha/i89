@@ -24,23 +24,45 @@ class Memory:
     class UpdateAttempted(Exception):
         pass
 
-    def __init__(self, size = 0x10000, write_once = True):
-        self.write_once = write_once
-        self.size = size
-        self.data = bytearray(size)
-        self.valid = bytearray(size)
-
-    @staticmethod
-    def _slice_len(sl):
-        if sl.step is None:
-            return max(0, sl.stop - sl.start)
+    # if both data and size are present size must equal len(data)
+    # if neither is present, a default size will be used
+    def __init__(self, data = None, size = None, write_once = True):
+        self.default_size = 0x10000
+        if data is None:
+            if size is None:
+                self.size = self.default_size
+            else:
+                self.size = size
+            self.data = bytearray(self.size)
+            self.valid = bytearray(self.size)
         else:
-            return max(0, math.ceil((sl.stop - sl.start)/sl.step))
+            if size is not None:
+                assert size == len(data)
+            self.size = len(data)
+            self.data = bytearray(data)
+            self.valid = bytearray([1] * self.size)
+        self.write_once = write_once
 
-    @staticmethod
-    def _slice_last(sl):
+    def __len__(self):
+        return self.size
+
+    def _slice_len(self, sl):
+        if sl.stop is None:
+            stop = self.size
+        else:
+            stop = sl.stop
         if sl.step is None:
-            return sl.stop - 1
+            return max(0, stop - sl.start)
+        else:
+            return max(0, math.ceil((stop - sl.start)/sl.step))
+
+    def _slice_last(self, sl):
+        if sl.stop is None:
+            stop = self.size
+        else:
+            stop = sl.stop
+        if sl.step is None:
+            return stop - 1
         else:
             return sl.start + sl.step * (Memory._slice_len(sl) - 1)
 
@@ -87,13 +109,16 @@ class Memory:
         first = self.valid.find(1, first)
         if first < 0:
             raise Memory.Uninitialized()
-        last = self.valid.find(0, first)
-        return slice(first, last)
-
-    def truncate(self):
-        last = self.valid.rfind(1)
+        last = self.valid.find(0, first + 1)
         if last < 0:
-            raise Memory.Uninitialized()
+            last = self.size - 1
+        return slice(first, last + 1)
+
+    def truncate(self, last = None):
+        if last is None:
+            last = self.valid.rfind(1)
+            if last < 0:
+                raise Memory.Uninitialized()
         self.size = last + 1
         self.data = self.data[:self.size]
         self.valid = self.valid[:self.size]
