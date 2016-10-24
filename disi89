@@ -60,21 +60,6 @@ def disassemble(i89, fw, show_obj = False, output_file = sys.stdout,
     pass2(i89, fw, base, length, symtab_by_value, show_obj = show_obj, output_file = output_file)
 
 
-def interleave(meml):
-    count = len(meml)
-
-    memlen = [len(mem) for mem in meml]
-
-    # the lengths of all the Memory supplied in the list must be the same
-    assert all(x == memlen[0] for x in memlen)
-
-    mem = Memory(size = memlen[0] * count)
-    for i in range(count):
-        mem[i::count] = meml[i]
-
-    return mem
-
-
 def read_object(input, inputformat = 'binary', base = 0, length = None):
     if inputformat == 'binary':
         meml = [Memory(data = f.read()) for f in args.input]
@@ -86,7 +71,7 @@ def read_object(input, inputformat = 'binary', base = 0, length = None):
     if len(meml) == 1:
         mem = meml[0]
     else:
-        mem = interleave(meml)
+        mem = Memory.interleave(meml)
                
     return mem
 

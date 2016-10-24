@@ -123,6 +123,20 @@ class Memory:
         self.data = self.data[:self.size]
         self.valid = self.valid[:self.size]
 
+
+    @staticmethod
+    def interleave(meml):
+        count = len(meml)
+        memlen = [len(mem) for mem in meml]
+        # the lengths of all the Memory supplied in the list must be the same
+        assert all(x == memlen[0] for x in memlen)
+
+        mem = Memory(size = memlen[0] * count)
+        for i in range(count):
+            mem[i::count] = meml[i]
+        return mem
+
+
 if __name__ == '__main__':
     memory = Memory()
 
