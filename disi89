@@ -63,9 +63,10 @@ def disassemble(i89, fw, show_obj = False, output_file = sys.stdout,
 def interleave(meml):
     count = len(meml)
 
-    # the lengths of all the Memory supplied in the list must be the same
     memlen = [len(mem) for mem in meml]
-    assert memlen.count(memlen[0]) == count
+
+    # the lengths of all the Memory supplied in the list must be the same
+    assert all(x == memlen[0] for x in memlen)
 
     mem = Memory(size = memlen[0] * count)
     for i in range(count):
