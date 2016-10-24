@@ -19,6 +19,7 @@ import sys
 
 from i89 import I89
 from intelhex import IntelHex
+from memory import Memory
 
 def pass1(i89, fw, base, length):
     symtab_by_value = {}
@@ -133,6 +134,9 @@ if __name__ == '__main__':
     if args.base != 0:
         fw = bytearray(args.base) + fw
 
-    disassemble(i89, fw, show_obj = args.listing, output_file = args.output,
+    memory = Memory()
+    memory[args.base:args.base + args.length] = fw
+
+    disassemble(i89, memory, show_obj = args.listing, output_file = args.output,
                 base = args.base,
                 length = args.length)
