@@ -16,7 +16,6 @@
 
 import argparse
 import sys
-from collections import namedtuple
 
 from i89 import I89
 from intelhex import IntelHex
