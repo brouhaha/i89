@@ -20,6 +20,7 @@ import sys
 
 from i89 import I89
 from memory import Memory
+from intelhex import IntelHex
 
 
 class AssemblerError(Exception):
@@ -122,7 +123,6 @@ class ASI89:
 
     class EQU_Directive(Directive):
         def process(self, asi89):
-            print('processing EQU, pass %d line %d' % (asi89.pass_num, asi89.line_num))
             if len(asi89.pl.operands) != 1:
                 raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 1)
             asi89.set_symbol(asi89.sl.label, asi89.pl.operands[0], asi89.pass_num == 2)
@@ -135,7 +135,6 @@ class ASI89:
 
     class ORG_Directive(Directive):
         def process(self, asi89):
-            print('processing ORG, pass %d line %d' % (asi89.pass_num, asi89.line_num))
             if len(asi89.pl.operands) != 1:
                 raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 1)
             asi89.set_symbol('$', asi89.pl.operands[0])
@@ -148,7 +147,6 @@ class ASI89:
 
     class DS_Directive(Directive):
         def process(self, asi89):
-            print('processing DS, pass %d line %d' % (asi89.pass_num, asi89.line_num))
             if len(asi89.pl.operands) != 0:
                 raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 0)
             asi89.set_symbol('$', asi89.symtab['$'] + asi89.pl.operands[0])
@@ -161,7 +159,6 @@ class ASI89:
 
     class DB_Directive(Directive):
         def process(self, asi89):
-            print('processing DB, pass %d line %d' % (asi89.pass_num, asi89.line_num))
             if len(asi89.pl.operands) < 1:
                 raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 1)
             asi89.emit(asi89.pl.operands)
@@ -174,7 +171,6 @@ class ASI89:
 
     class DW_Directive(Directive):
         def process(self, asi89):
-            print('processing DW, pass %d line %d' % (asi89.pass_num, asi89.line_num))
             if len(asi89.pl.operands) < 1:
                 raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 1)
             if -1 in asi89.pl.operands:
@@ -291,11 +287,11 @@ class ASI89:
             if m.group('hex'):
                 return int(m.group('hex'), 16)
         m = self.ident_re.match(s)
-        print('pass %d line %d ident %s' % (self.pass_num, self.line_num, s), m)
+        #print('pass %d line %d ident %s' % (self.pass_num, self.line_num, s), m)
         if m:
             ident = m.group(0)
             rest = s[len(ident):]
-            print('ident: "%s", rest: "%s"' % (ident, rest))
+            #print('ident: "%s", rest: "%s"' % (ident, rest))
             if ident in self.symtab:
                 value = self.symtab[ident]
             elif self.pass_num == 1:
@@ -383,10 +379,6 @@ class ASI89:
         self.pl.operands = [self.parse_operand(so) for so in self.sl.operands]
 
 
-    def write_hexfile(self, memory, hexfile):
-        pass # XXX more code needed here
-
-
     def assemble_line(self):
         if self.pl.inst == None:
             return
@@ -414,9 +406,13 @@ class ASI89:
                 self.parse_line()
                 self.assemble_line()
 
-        print(self.symtab)
-        for k, v in self.symtab.items():
-            print('%-8s %04x' % (k + ':', v))
+        if self.listfile is not None:
+            print(self.symtab, file = self.listfile)
+            for k, v in self.symtab.items():
+                print('%-8s %04x' % (k + ':', v), file = self.listfile)
+
+        if self.hexfile is not None:
+            IntelHex().write(self.hexfile, self.memory)
 
 
 if __name__ == '__main__':
@@ -456,7 +452,6 @@ if __name__ == '__main__':
                         help = 'output file')
 
     args = parser.parse_args()
-    print(args)
 
     asi89 = ASI89(srcfile = args.asmfile, listfile = args.listing, hexfile = args.output)
 
