@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+from collections import namedtuple
 from enum import Enum
 
 
@@ -37,6 +38,37 @@ OT = Enum('OT', ['reg',          # general register (all 8)
                  'memo', 'memo2' # mem ref w/ offset
                 ])
 
+
+def bit_count(v):
+    return bin(v).count('1')
+
+
+class BitField:
+    def __init__(self, byte_count = 0):
+        self.width = 0  # width of the field within the instruction
+        self.mask = bytearray(byte_count)
+
+    def __repr__(self):
+        return 'BitField(width = %d, mask = %s' % (self.width, str(self.mask))
+
+    def append(self, mask_byte):
+        self.mask.append(mask_byte)
+        self.width += bit_count(mask_byte)
+
+    def pad_length(self, length):
+        if len(self.mask) < length:
+            self.mask += bytearray(length - len(self.mask))
+
+    def insert(self, bits, value):
+        assert isinstance(value, int)
+        for i in range(len(bits)):
+            for b in [1 << j for j in range(8)]:
+                if self.mask[i] & b:
+                    if value & 1:
+                        bits[i] |= b
+                    value >>= 1
+        #assert value == 0  # XXX causes negative 8-bit immediates to fail
+        
 
 # An instruction form is a variant of an instruction that takes
 # specific operand types.
@@ -71,7 +103,6 @@ class Form:
         mask = []
         fields = { }
         second_flag = False
-        i = 0
         while len(encoding):
             if encoding[0] == '/':
                 encoding = encoding[1:]
@@ -89,14 +120,12 @@ class Form:
             mask.append(m)
             for k in f:
                 if k not in fields:
-                    fields[k] = [0x00] * (i)
+                    fields[k] = BitField(len(bits)-1)
                 fields[k].append(f[k])
-            i += 1
         if ep_debug:
             print('fields before:', fields)
         for k in fields:
-            if len(fields[k]) < i:
-                fields[k] += [0x00] * (i - len(fields[k]))
+            fields[k].pad_length(len(bits))
         if ep_debug:
             print('fields after:', fields)
         return bits, mask, fields
@@ -105,6 +134,17 @@ class Form:
         self.operands = operands
         self.encoding = encoding
         self.bits, self.mask, self.fields = Form.__encoding_parse(encoding)
+
+    def __len__(self):
+        return len(self.bits)
+
+    def insert_fields(self, fields):
+        bits = bytearray(self.bits)
+        assert set(self.fields.keys()) == set(fields.keys())
+        for k, bitfield in self.fields.items():
+            bitfield.insert(bits, fields[k])
+        return bits
+        
 
 
 # An instruction has a single mnemonic, but possibly multiple
@@ -364,7 +404,10 @@ class I89:
     class MemoryReference:
         def __init__(self, base_reg, indexed = False, auto_increment = False, offset = None):
             super().__init__()
-            self.base_reg = base_reg
+            if isinstance(base_reg, I89.AReg):
+                self.base_reg = base_reg
+            else:
+                self.base_reg = I89.AReg[base_reg]
             self.offset = offset
             if indexed == False:
                 assert auto_increment is False
@@ -381,10 +424,13 @@ class I89:
 
 
     def __opcode_init(self):
+        self.__inst_by_opcode = { }
+        self.__inst_by_mnemonic = { }
         for inst in self.__inst_set:
             if inst.mnem not in self.__inst_by_mnemonic:
                 self.__inst_by_mnemonic[inst.mnem] = inst
             for form in inst.forms:
+                #print(inst.mnem, form.operands, form.fields)
                 opcode = form.bits[1] & 0xfc
                 if opcode not in self.__inst_by_opcode:
                     self.__inst_by_opcode[opcode] = []
@@ -401,9 +447,9 @@ class I89:
     def __extract_field(inst, fields, f):
         width = 0
         v = 0
-        for i in reversed(range(min(len(inst), len(fields[f])))):
+        for i in reversed(range(min(len(inst), len(fields[f].mask)))):
             for j in reversed(range(8)):
-                if fields[f][i] & (1 << j):
+                if fields[f].mask[i] & (1 << j):
                     v = (v << 1) | ((inst[i] >> j) & 1)
                     width += 1
         if width == 8 and v > 127 and (f == 'i' or f == 'j'):
@@ -415,7 +461,7 @@ class I89:
         form = op.forms[0]
         fields = { }
 
-        l = len(form.bits)
+        l = len(form)
         inst = fw[pc:pc+l]
 
         for i in range(l):
@@ -429,7 +475,7 @@ class I89:
         if 'j' in form.fields:
             fields['j'] = (fields['j'] + pc + l) & 0xffff
 
-        return len(form.bits), fields
+        return len(form), fields
 
 
     class BadInstruction(Exception):
@@ -616,15 +662,15 @@ class I89:
         elif operand_type == OT.widd:
             return { 'd': self.__width_bit(operand) }
         elif operand_type == OT.mem:
-            return { 'a': operand.mode, 'm': operand.base_reg }
+            return { 'a': operand.mode, 'm': operand.base_reg.value }
         elif operand_type == OT.mem2:
-            return { 'a2': operand.mode, 'm2': operand.base_reg }
+            return { 'a2': operand.mode, 'm2': operand.base_reg.value }
         elif operand_type == OT.memo:
             self.__check_range(operand.offset, range(0, 256))
-            return { 'm': operand.base_reg, 'o': operand.offset }
+            return { 'm': operand.base_reg.value, 'o': operand.offset }
         elif operand_type == OT.memo2:
             self.__check_range(operand.offset, range(0, 256))
-            return { 'm2': operand.base_reg, 'o2': operand.offset }
+            return { 'm2': operand.base_reg.value, 'o2': operand.offset }
         else:
             raise Unimplemented("can't assemble operand")
 
@@ -651,13 +697,11 @@ class I89:
         fields = { }
         for i in range(len(operands)):
             fields.update(self.__assemble_operand(operands[i], form.operands[i]))
-        bits = bytearray(form.bits)
-        # XXX need to insert fields
-        return bits
+        if 'j' in fields:
+            fields['j'] = (fields['j'] - (pc + len(form))) & 0xffff  # PC relative branch targets
+        return form.insert_fields(fields)
 
     def __init__(self):
-        self.__inst_by_opcode = { }
-        self.__inst_by_mnemonic = { }
         self.__opcode_init()
 
 if __name__ == '__main__':
