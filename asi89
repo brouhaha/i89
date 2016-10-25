@@ -394,7 +394,11 @@ class ASI89:
         if bb is None:
             bb = bytearray()
         if self.pass_num == 2 and self.listfile:
-            s = '%5d  %04x ' % (self.line_num, self.symtab['$'])
+            s = '%5d  ' % self.line_num
+            if len(bb):
+                s += '%04x ' % self.symtab['$']
+            else:
+                s += '     '
             for i in range(6):
                 if i < len(bb):
                     s += ' %02x' % bb[i]
@@ -402,7 +406,7 @@ class ASI89:
                     s += '   '
             s += self.line
             print(s, file = self.listfile)
-        if bb is not None:
+        if len(bb):
             self.emit(bb)
         
 
