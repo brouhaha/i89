@@ -33,6 +33,18 @@ OT = Enum('OT', ['reg',   # general register (all 8)
                 ])
 
 
+# An instruction form is a variant of an instruction that takes
+# specific operand types.
+Form = namedtuple('Form', ['operands', 'encoding'])
+
+# An instruction has a single mnemonic, but possibly multiple
+# forms.
+class Inst:
+    def __init__(self, mnem, *forms):
+        self.mnem = mnem
+        self.forms = forms
+
+
 class I89:
     Op = namedtuple('Op', ['mnem', 'operands', 'bits', 'mask', 'fields'])
 
@@ -40,203 +52,203 @@ class I89:
     # The destination operand precedes the source operand(s).
     __inst_set = [
         # JMP is ADDBI with rrr=100 (TP), put earlier than ADDBI in table
-        ['jmp',    [[(OT.jmp,)         , '10001000 00100000 jjjjjjjj']]],
+        Inst('jmp',   Form((OT.jmp,)          , '10001000 00100000 jjjjjjjj')),
 
         # LJMP is ADDI with rrr=100 (TP), put earlier than ADDI in table
-        ['ljmp',   [[(OT.jmp,)         , '10010001 00100000 jjjjjjjj jjjjjjjj']]],
+        Inst('ljmp',  Form((OT.jmp,)          , '10010001 00100000 jjjjjjjj jjjjjjjj')),
+
+        Inst('mov',   Form((OT.reg,  OT.memo) , 'rrr00011 100000mm oooooooo'),
+                      Form((OT.reg,  OT.mem)  , 'rrr00aa1 100000mm'),
+                      Form((OT.memo, OT.reg)  , 'rrr00011 100001mm oooooooo'),
+                      Form((OT.mem,  OT.reg)  , 'rrr00aa1 100001mm'),
+                      Form((OT.memo2,OT.memo) , '00000011 100100mm oooooooo/00000011 110011mm oooooooo'),
+                      Form((OT.mem2, OT.memo) , '00000011 100100mm oooooooo/00000aa1 110011mm'),
+                      Form((OT.memo2,OT.mem)  , '00000aa1 100100mm/00000011 110011mm oooooooo'),
+                      Form((OT.mem2, OT.mem)  , '00000aa1 100100mm/00000aa1 110011mm')),
+
+        Inst('movb',  Form((OT.reg,  OT.memo) , 'rrr00010 100000mm oooooooo'),
+                      Form((OT.reg,  OT.mem)  , 'rrr00aa0 100000mm'),
+                      Form((OT.memo, OT.reg)  , 'rrr00010 100001mm oooooooo'),
+                      Form((OT.mem,  OT.reg)  , 'rrr00aa0 100001mm'),
+                      Form((OT.memo2,OT.memo) , '00000010 100100mm oooooooo/00000010 110011mm oooooooo'),
+                      Form((OT.mem2, OT.memo) , '00000010 100100mm oooooooo/00000aa0 110011mm'),
+                      Form((OT.memo2,OT.mem)  , '00000aa0 100100mm/00000010 110011mm oooooooo'),
+                      Form((OT.mem2, OT.mem)  , '00000aa0 100100mm/00000aa0 110011mm')),
+
+        Inst('movbi', Form((OT.reg,  OT.imm)  , 'rrr01000 00110000 iiiiiiii'),
+                      Form((OT.memo, OT.imm)  , '00001010 010011mm oooooooo iiiiiiii'),
+                      Form((OT.mem,  OT.imm)  , '00001aa0 010011mm iiiiiiii')),
+
+        Inst('movi',  Form((OT.reg,  OT.imm)  , 'rrr10001 00110000 iiiiiiii iiiiiiii'),
+                      Form((OT.memo, OT.imm)  , '00010011 010011mm oooooooo iiiiiiii iiiiiiii'),
+                      Form((OT.mem,  OT.imm)  , '00010aa1 010011mm iiiiiiii iiiiiiii')),
+
+        Inst('movp',  Form((OT.preg, OT.memo) , 'ppp00011 100011mm oooooooo'),
+                      Form((OT.preg, OT.mem)  , 'ppp00aa1 100011mm'),
+                      Form((OT.memo, OT.preg) , 'ppp00011 100110mm oooooooo'),
+                      Form((OT.mem,  OT.preg) , 'ppp00aa1 100110mm')),
+
+        Inst('lpd' ,  Form((OT.preg, OT.memo,), 'ppp00011 100010mm oooooooo'),
+                      Form((OT.preg, OT.mem,) , 'ppp00aa1 100010mm')),
     
-        ['mov',    [[(OT.reg,  OT.memo) , 'rrr00011 100000mm oooooooo'],
-                    [(OT.reg,  OT.mem)  , 'rrr00aa1 100000mm'],
-                    [(OT.memo, OT.reg)  , 'rrr00011 100001mm oooooooo'],
-                    [(OT.mem,  OT.reg)  , 'rrr00aa1 100001mm'],
-                    [(OT.memo2,OT.memo) , '00000011 100100mm oooooooo/00000011 110011mm oooooooo'],
-                    [(OT.mem2, OT.memo) , '00000011 100100mm oooooooo/00000aa1 110011mm'],
-                    [(OT.memo2,OT.mem)  , '00000aa1 100100mm/00000011 110011mm oooooooo'],
-                    [(OT.mem2, OT.mem)  , '00000aa1 100100mm/00000aa1 110011mm']]],
+        Inst('lpdi',  Form((OT.preg, OT.i32)  , 'ppp10001 00001000 iiiiiiii iiiiiiii ssssssss ssssssss')),
 
-        ['movb',   [[(OT.reg,  OT.memo) , 'rrr00010 100000mm oooooooo'],
-                    [(OT.reg,  OT.mem)  , 'rrr00aa0 100000mm'],
-                    [(OT.memo, OT.reg)  , 'rrr00010 100001mm oooooooo'],
-                    [(OT.mem,  OT.reg)  , 'rrr00aa0 100001mm'],
-                    [(OT.memo2,OT.memo) , '00000010 100100mm oooooooo/00000010 110011mm oooooooo'],
-                    [(OT.mem2, OT.memo) , '00000010 100100mm oooooooo/00000aa0 110011mm'],
-                    [(OT.memo2,OT.mem)  , '00000aa0 100100mm/00000010 110011mm oooooooo'],
-                    [(OT.mem2, OT.mem)  , '00000aa0 100100mm/00000aa0 110011mm']]],
-
-        ['movbi',  [[(OT.reg,  OT.imm)  , 'rrr01000 00110000 iiiiiiii'],
-                    [(OT.memo, OT.imm)  , '00001010 010011mm oooooooo iiiiiiii'],
-                    [(OT.mem,  OT.imm)  , '00001aa0 010011mm iiiiiiii']]],
-
-        ['movi',   [[(OT.reg,  OT.imm)  , 'rrr10001 00110000 iiiiiiii iiiiiiii'],
-                    [(OT.memo, OT.imm)  , '00010011 010011mm oooooooo iiiiiiii iiiiiiii'],
-                    [(OT.mem,  OT.imm)  , '00010aa1 010011mm iiiiiiii iiiiiiii']]],
-
-        ['movp',   [[(OT.preg, OT.memo) , 'ppp00011 100011mm oooooooo'],
-                    [(OT.preg, OT.mem)  , 'ppp00aa1 100011mm'],
-                    [(OT.memo, OT.preg) , 'ppp00011 100110mm oooooooo'],
-                    [(OT.mem,  OT.preg) , 'ppp00aa1 100110mm']]],
-
-        ['lpd' ,   [[(OT.preg, OT.memo,), 'ppp00011 100010mm oooooooo'],
-                    [(OT.preg, OT.mem,) , 'ppp00aa1 100010mm']]],
-    
-        ['lpdi',   [[(OT.preg, OT.i32)  , 'ppp10001 00001000 iiiiiiii iiiiiiii ssssssss ssssssss']]],
-
-        ['add',    [[(OT.reg,  OT.memo) , 'rrr00011 101000mm oooooooo'],
-                    [(OT.reg,  OT.mem)  , 'rrr00aa1 101000mm'],
-                    [(OT.memo, OT.reg)  , 'rrr00011 110100mm oooooooo'],
-                    [(OT.mem,  OT.reg)  , 'rrr00aa1 110100mm']]],
+        Inst('add',   Form((OT.reg,  OT.memo) , 'rrr00011 101000mm oooooooo'),
+                      Form((OT.reg,  OT.mem)  , 'rrr00aa1 101000mm'),
+                      Form((OT.memo, OT.reg)  , 'rrr00011 110100mm oooooooo'),
+                      Form((OT.mem,  OT.reg)  , 'rrr00aa1 110100mm')),
 
         # ADDB encodings in 8089 assembler manual p3-12 have W bit wrong
-        ['addb',   [[(OT.reg,  OT.memo) , 'rrr00010 101000mm oooooooo'],
-                    [(OT.reg,  OT.mem)  , 'rrr00aa0 101000mm'],
-                    [(OT.memo, OT.reg)  , 'rrr00010 110100mm oooooooo'],
-                    [(OT.mem,  OT.reg)  , 'rrr00aa0 110100mm']]],
+        Inst('addb',  Form((OT.reg,  OT.memo) , 'rrr00010 101000mm oooooooo'),
+                      Form((OT.reg,  OT.mem)  , 'rrr00aa0 101000mm'),
+                      Form((OT.memo, OT.reg)  , 'rrr00010 110100mm oooooooo'),
+                      Form((OT.mem,  OT.reg)  , 'rrr00aa0 110100mm')),
 
-        ['addi',   [[(OT.reg,  OT.imm)  , 'rrr10001 00100000 iiiiiiii iiiiiiii'],
-                    [(OT.memo, OT.imm)  , '00010011 110000mm oooooooo iiiiiiii iiiiiiii'],
-                    [(OT.mem,  OT.imm)  , '00010aa1 110000mm iiiiiiii iiiiiiii']]],
+        Inst('addi',  Form((OT.reg,  OT.imm)  , 'rrr10001 00100000 iiiiiiii iiiiiiii'),
+                      Form((OT.memo, OT.imm)  , '00010011 110000mm oooooooo iiiiiiii iiiiiiii'),
+                      Form((OT.mem,  OT.imm)  , '00010aa1 110000mm iiiiiiii iiiiiiii')),
 
-        ['addbi',  [[(OT.reg,  OT.imm)  , 'rrr01000 00100000 iiiiiiii'],
-                    [(OT.memo, OT.imm)  , '00001010 110000mm oooooooo iiiiiiii'],
-                    [(OT.mem,  OT.imm)  , '00001aa0 110000mm iiiiiiii']]],
+        Inst('addbi', Form((OT.reg,  OT.imm)  , 'rrr01000 00100000 iiiiiiii'),
+                      Form((OT.memo, OT.imm)  , '00001010 110000mm oooooooo iiiiiiii'),
+                      Form((OT.mem,  OT.imm)  , '00001aa0 110000mm iiiiiiii')),
 
-        ['inc',    [[(OT.reg,)         , 'rrr00000 00111000'],
-                    [(OT.memo,)        , '00000011 111010mm oooooooo'],
-                    [(OT.mem,)         , '00000aa1 111010mm']]],
+        Inst('inc',   Form((OT.reg,)          , 'rrr00000 00111000'),
+                      Form((OT.memo,)         , '00000011 111010mm oooooooo'),
+                      Form((OT.mem,)          , '00000aa1 111010mm')),
 
-        ['incb',   [[(OT.memo,)        , '00000010 111010mm oooooooo'],
-                    [(OT.mem,)         , '00000aa0 111010mm']]],
+        Inst('incb',  Form((OT.memo,)         , '00000010 111010mm oooooooo'),
+                      Form((OT.mem,)          , '00000aa0 111010mm')),
 
-        ['dec',    [[(OT.reg,)         , 'rrr00000 00111100'],
-                    [(OT.memo,)        , '00000011 111011mm oooooooo'],
-                    [(OT.mem,)         , '00000aa1 111011mm']]],
+        Inst('dec',   Form((OT.reg,)          , 'rrr00000 00111100'),
+                      Form((OT.memo,)         , '00000011 111011mm oooooooo'),
+                      Form((OT.mem,)          , '00000aa1 111011mm')),
 
-        ['decb',   [[(OT.memo,)        , '00000010 111011mm oooooooo'],
-                    [(OT.mem,)         , '00000aa0 111011mm']]],
+        Inst('decb',  Form((OT.memo,)         , '00000010 111011mm oooooooo'),
+                      Form((OT.mem,)          , '00000aa0 111011mm')),
 
-        ['and',    [[(OT.reg,  OT.memo) , 'rrr00011 101010mm oooooooo'],
-                    [(OT.reg,  OT.mem)  , 'rrr00aa1 101010mm'],
-                    [(OT.memo, OT.reg)  , 'rrr00011 110110mm oooooooo'],
-                    [(OT.mem,  OT.reg)  , 'rrr00aa1 110110mm']]],
+        Inst('and',   Form((OT.reg,  OT.memo) , 'rrr00011 101010mm oooooooo'),
+                      Form((OT.reg,  OT.mem)  , 'rrr00aa1 101010mm'),
+                      Form((OT.memo, OT.reg)  , 'rrr00011 110110mm oooooooo'),
+                      Form((OT.mem,  OT.reg)  , 'rrr00aa1 110110mm')),
 
-        ['andb',   [[(OT.reg,  OT.memo) , 'rrr00010 101010mm oooooooo'],
-                    [(OT.reg,  OT.mem)  , 'rrr00aa0 101010mm'],
-                    [(OT.memo, OT.reg)  , 'rrr00010 110110mm oooooooo'],
-                    [(OT.mem,  OT.reg)  , 'rrr00aa0 110110mm']]],
+        Inst('andb',  Form((OT.reg,  OT.memo) , 'rrr00010 101010mm oooooooo'),
+                      Form((OT.reg,  OT.mem)  , 'rrr00aa0 101010mm'),
+                      Form((OT.memo, OT.reg)  , 'rrr00010 110110mm oooooooo'),
+                      Form((OT.mem,  OT.reg)  , 'rrr00aa0 110110mm')),
 
-        ['andi',   [[(OT.reg,  OT.imm)  , 'rrr10001 00101000 iiiiiiii iiiiiiii'],
-                    [(OT.memo, OT.imm)  , '00010011 110010mm oooooooo iiiiiiii iiiiiiii'],
-                    [(OT.mem,  OT.imm)  , '00010aa1 110010mm iiiiiiii iiiiiiii']]],
+        Inst('andi',  Form((OT.reg,  OT.imm)  , 'rrr10001 00101000 iiiiiiii iiiiiiii'),
+                      Form((OT.memo, OT.imm)  , '00010011 110010mm oooooooo iiiiiiii iiiiiiii'),
+                      Form((OT.mem,  OT.imm)  , '00010aa1 110010mm iiiiiiii iiiiiiii')),
 
-        ['andbi',  [[(OT.reg,  OT.imm)  , 'rrr01000 00101000 iiiiiiii'],
-                    [(OT.memo, OT.imm)  , '00001010 110010mm oooooooo iiiiiiii'],
-                    [(OT.mem,  OT.imm)  , '00001aa0 110010mm iiiiiiii']]],
+        Inst('andbi', Form((OT.reg,  OT.imm)  , 'rrr01000 00101000 iiiiiiii'),
+                      Form((OT.memo, OT.imm)  , '00001010 110010mm oooooooo iiiiiiii'),
+                      Form((OT.mem,  OT.imm)  , '00001aa0 110010mm iiiiiiii')),
 
-        ['or',     [[(OT.reg,  OT.memo) , 'rrr00011 101001mm oooooooo'],
-                    [(OT.reg,  OT.mem)  , 'rrr00aa1 101001mm'],
-                    [(OT.memo, OT.reg)  , 'rrr00011 110101mm oooooooo'],
-                    [(OT.mem,  OT.reg)  , 'rrr00aa1 110101mm']]],
+        Inst('or',    Form((OT.reg,  OT.memo) , 'rrr00011 101001mm oooooooo'),
+                      Form((OT.reg,  OT.mem)  , 'rrr00aa1 101001mm'),
+                      Form((OT.memo, OT.reg)  , 'rrr00011 110101mm oooooooo'),
+                      Form((OT.mem,  OT.reg)  , 'rrr00aa1 110101mm')),
 
-        ['orb',    [[(OT.reg,  OT.memo) , 'rrr00010 101001mm oooooooo'],
-                    [(OT.reg,  OT.mem)  , 'rrr00aa0 101001mm'],
-                    [(OT.memo, OT.reg)  , 'rrr00010 110101mm oooooooo'],
-                    [(OT.mem,  OT.reg)  , 'rrr00aa0 110101mm']]],
+        Inst('orb',   Form((OT.reg,  OT.memo) , 'rrr00010 101001mm oooooooo'),
+                      Form((OT.reg,  OT.mem)  , 'rrr00aa0 101001mm'),
+                      Form((OT.memo, OT.reg)  , 'rrr00010 110101mm oooooooo'),
+                      Form((OT.mem,  OT.reg)  , 'rrr00aa0 110101mm')),
 
-        ['ori',    [[(OT.reg,  OT.imm)  , 'rrr10001 00100100 iiiiiiii iiiiiiii'],
-                    [(OT.memo, OT.imm)  , '00010011 110001mm oooooooo iiiiiiii iiiiiiii'],
-                    [(OT.mem,  OT.imm)  , '00010aa1 110001mm iiiiiiii iiiiiiii']]],
+        Inst('ori',   Form((OT.reg,  OT.imm)  , 'rrr10001 00100100 iiiiiiii iiiiiiii'),
+                      Form((OT.memo, OT.imm)  , '00010011 110001mm oooooooo iiiiiiii iiiiiiii'),
+                      Form((OT.mem,  OT.imm)  , '00010aa1 110001mm iiiiiiii iiiiiiii')),
 
-        ['orbi',   [[(OT.reg,  OT.imm)  , 'rrr01000 00100100 iiiiiiii'],
-                    [(OT.memo, OT.imm)  , '00001010 110001mm oooooooo iiiiiiii'],
-                    [(OT.mem,  OT.imm)  , '00001aa0 110001mm iiiiiiii']]],
+        Inst('orbi',  Form((OT.reg,  OT.imm)  , 'rrr01000 00100100 iiiiiiii'),
+                      Form((OT.memo, OT.imm)  , '00001010 110001mm oooooooo iiiiiiii'),
+                      Form((OT.mem,  OT.imm)  , '00001aa0 110001mm iiiiiiii')),
 
-        ['not',    [[(OT.reg,)         , 'rrr00000 00101100'],
-                    [(OT.memo,)        , '00000011 110111mm oooooooo'],
-                    [(OT.mem,)         , '00000aa1 110111mm'],
-                    [(OT.reg,  OT.memo) , 'rrr00011 101011mm oooooooo'],
-                    [(OT.reg,  OT.mem)  , 'rrr00aa1 101011mm']]],
+        Inst('not',   Form((OT.reg,)          , 'rrr00000 00101100'),
+                      Form((OT.memo,)         , '00000011 110111mm oooooooo'),
+                      Form((OT.mem,)          , '00000aa1 110111mm'),
+                      Form((OT.reg,  OT.memo) , 'rrr00011 101011mm oooooooo'),
+                      Form((OT.reg,  OT.mem)  , 'rrr00aa1 101011mm')),
 
-        ['notb',   [[(OT.memo,)        , '00000010 110111mm oooooooo'],
-                    [(OT.mem,)         , '00000aa0 110111mm'],
-                    [(OT.reg,  OT.memo) , 'rrr00010 101011mm oooooooo'],
-                    [(OT.reg,  OT.mem)  , 'rrr00aa0 101011mm']]],
+        Inst('notb',  Form((OT.memo,)         , '00000010 110111mm oooooooo'),
+                      Form((OT.mem,)          , '00000aa0 110111mm'),
+                      Form((OT.reg,  OT.memo) , 'rrr00010 101011mm oooooooo'),
+                      Form((OT.reg,  OT.mem)  , 'rrr00aa0 101011mm')),
 
-        ['setb',   [[(OT.memo, OT.bit)  , 'bbb00010 111101mm oooooooo'],
-                    [(OT.mem,  OT.bit)  , 'bbb00aa0 111101mm']]],
+        Inst('setb',  Form((OT.memo, OT.bit)  , 'bbb00010 111101mm oooooooo'),
+                      Form((OT.mem,  OT.bit)  , 'bbb00aa0 111101mm')),
 
-        ['clr',    [[(OT.memo, OT.bit)  , 'bbb00010 111110mm oooooooo'],
-                    [(OT.mem,  OT.bit)  , 'bbb00aa0 111110mm']]],
+        Inst('clr',   Form((OT.memo, OT.bit)  , 'bbb00010 111110mm oooooooo'),
+                      Form((OT.mem,  OT.bit)  , 'bbb00aa0 111110mm')),
 
-        ['call',   [[(OT.memo, OT.jmp)  , '10001011 100111mm oooooooo jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '10001aa1 100111mm jjjjjjjj']]],
+        Inst('call',  Form((OT.memo, OT.jmp)  , '10001011 100111mm oooooooo jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '10001aa1 100111mm jjjjjjjj')),
 
-        ['lcall',  [[(OT.memo, OT.jmp)  , '10010011 100111mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '10010aa1 100111mm jjjjjjjj jjjjjjjj']]],
+        Inst('lcall', Form((OT.memo, OT.jmp)  , '10010011 100111mm oooooooo jjjjjjjj jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '10010aa1 100111mm jjjjjjjj jjjjjjjj')),
 
-        ['jz',     [[(OT.reg,  OT.jmp)  , 'rrr01000 01000100 jjjjjjjj'],
-                    [(OT.memo, OT.jmp)  , '00001011 111001mm oooooooo jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '00001aa1 111001mm jjjjjjjj']]],
+        Inst('jz',    Form((OT.reg,  OT.jmp)  , 'rrr01000 01000100 jjjjjjjj'),
+                      Form((OT.memo, OT.jmp)  , '00001011 111001mm oooooooo jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '00001aa1 111001mm jjjjjjjj')),
 
-        ['ljz',    [[(OT.reg,  OT.jmp)  , 'rrr10000 01000100 jjjjjjjj jjjjjjjj'],
-                    [(OT.memo, OT.jmp)  , '00010011 111001mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '00010aa1 111001mm jjjjjjjj jjjjjjjj']]],
+        Inst('ljz',   Form((OT.reg,  OT.jmp)  , 'rrr10000 01000100 jjjjjjjj jjjjjjjj'),
+                      Form((OT.memo, OT.jmp)  , '00010011 111001mm oooooooo jjjjjjjj jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '00010aa1 111001mm jjjjjjjj jjjjjjjj')),
 
-        ['jzb',    [[(OT.memo, OT.jmp)  , '00001010 111001mm oooooooo jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '00001aa0 111001mm jjjjjjjj']]],
+        Inst('jzb',   Form((OT.memo, OT.jmp)  , '00001010 111001mm oooooooo jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '00001aa0 111001mm jjjjjjjj')),
 
-        ['ljzb',   [[(OT.memo, OT.jmp)  , '00010010 111001mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '00010aa0 111001mm jjjjjjjj jjjjjjjj']]],
+        Inst('ljzb',  Form((OT.memo, OT.jmp)  , '00010010 111001mm oooooooo jjjjjjjj jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '00010aa0 111001mm jjjjjjjj jjjjjjjj')),
 
-        ['jnz',    [[(OT.reg,  OT.jmp)  , 'rrr01000 01000000 jjjjjjjj'],
-                    [(OT.memo, OT.jmp)  , '00001011 111000mm oooooooo jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '00001aa1 111000mm jjjjjjjj']]],
+        Inst('jnz',   Form((OT.reg,  OT.jmp)  , 'rrr01000 01000000 jjjjjjjj'),
+                      Form((OT.memo, OT.jmp)  , '00001011 111000mm oooooooo jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '00001aa1 111000mm jjjjjjjj')),
 
-        ['ljnz',   [[(OT.reg,  OT.jmp)  , 'rrr10000 01000000 jjjjjjjj jjjjjjjj'],
-                    [(OT.memo, OT.jmp)  , '00010011 111000mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '00010aa1 111000mm jjjjjjjj jjjjjjjj']]],
+        Inst('ljnz',  Form((OT.reg,  OT.jmp)  , 'rrr10000 01000000 jjjjjjjj jjjjjjjj'),
+                      Form((OT.memo, OT.jmp)  , '00010011 111000mm oooooooo jjjjjjjj jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '00010aa1 111000mm jjjjjjjj jjjjjjjj')),
 
-        ['jnzb',   [[(OT.memo, OT.jmp)  , '00001010 111000mm oooooooo jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '00001aa0 111000mm jjjjjjjj']]],
+        Inst('jnzb',  Form((OT.memo, OT.jmp)  , '00001010 111000mm oooooooo jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '00001aa0 111000mm jjjjjjjj')),
 
-        ['ljnzb',  [[(OT.memo, OT.jmp)  , '00010010 111000mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '00010aa0 111000mm jjjjjjjj jjjjjjjj']]],
+        Inst('ljnzb', Form((OT.memo, OT.jmp)  , '00010010 111000mm oooooooo jjjjjjjj jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '00010aa0 111000mm jjjjjjjj jjjjjjjj')),
 
-        ['jmce',   [[(OT.memo, OT.jmp)  , '00001010 101100mm oooooooo jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '00001aa0 101100mm jjjjjjjj']]],
+        Inst('jmce',  Form((OT.memo, OT.jmp)  , '00001010 101100mm oooooooo jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '00001aa0 101100mm jjjjjjjj')),
 
-        ['ljmce',  [[(OT.memo, OT.jmp)  , '00010010 101100mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '00010aa0 101100mm jjjjjjjj jjjjjjjj']]],
+        Inst('ljmce', Form((OT.memo, OT.jmp)  , '00010010 101100mm oooooooo jjjjjjjj jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '00010aa0 101100mm jjjjjjjj jjjjjjjj')),
 
-        ['jmcne',  [[(OT.memo, OT.jmp)  , '00001010 101101mm oooooooo jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '00001aa0 101101mm jjjjjjjj']]],
+        Inst('jmcne', Form((OT.memo, OT.jmp)  , '00001010 101101mm oooooooo jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '00001aa0 101101mm jjjjjjjj')),
 
-        ['ljmcne', [[(OT.memo, OT.jmp)  , '00010010 101101mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [(OT.mem,  OT.jmp)  , '00010aa0 101101mm jjjjjjjj jjjjjjjj']]],
+        Inst('ljmcne',Form((OT.memo, OT.jmp)  , '00010010 101101mm oooooooo jjjjjjjj jjjjjjjj'),
+                      Form((OT.mem,  OT.jmp)  , '00010aa0 101101mm jjjjjjjj jjjjjjjj')),
 
-        ['jbt',    [[(OT.memo, OT.bit, OT.jmp), 'bbb01010 101111mm oooooooo jjjjjjjj'],
-                    [(OT.mem,  OT.bit, OT.jmp), 'bbb01aa0 101111mm jjjjjjjj']]],
+        Inst('jbt',   Form((OT.memo, OT.bit, OT.jmp), 'bbb01010 101111mm oooooooo jjjjjjjj'),
+                      Form((OT.mem,  OT.bit, OT.jmp), 'bbb01aa0 101111mm jjjjjjjj')),
 
-        ['ljbt',   [[(OT.memo, OT.bit, OT.jmp), 'bbb10010 101111mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [(OT.mem,  OT.bit, OT.jmp), 'bbb10aa0 101111mm jjjjjjjj jjjjjjjj']]],
+        Inst('ljbt',  Form((OT.memo, OT.bit, OT.jmp), 'bbb10010 101111mm oooooooo jjjjjjjj jjjjjjjj'),
+                      Form((OT.mem,  OT.bit, OT.jmp), 'bbb10aa0 101111mm jjjjjjjj jjjjjjjj')),
 
-        ['jnbt',   [[(OT.memo, OT.bit, OT.jmp), 'bbb01010 101110mm oooooooo jjjjjjjj'],
-                    [(OT.mem,  OT.bit, OT.jmp), 'bbb01aa0 101110mm jjjjjjjj']]],
+        Inst('jnbt',  Form((OT.memo, OT.bit, OT.jmp), 'bbb01010 101110mm oooooooo jjjjjjjj'),
+                      Form((OT.mem,  OT.bit, OT.jmp), 'bbb01aa0 101110mm jjjjjjjj')),
 
-        ['ljnbt',  [[(OT.memo, OT.bit, OT.jmp), 'bbb10010 101110mm oooooooo jjjjjjjj jjjjjjjj'],
-                    [(OT.mem,  OT.bit, OT.jmp), 'bbb10aa0 101110mm jjjjjjjj jjjjjjjj']]],
+        Inst('ljnbt', Form((OT.memo, OT.bit, OT.jmp), 'bbb10010 101110mm oooooooo jjjjjjjj jjjjjjjj'),
+                      Form((OT.mem,  OT.bit, OT.jmp), 'bbb10aa0 101110mm jjjjjjjj jjjjjjjj')),
 
-        ['tsl',    [[(OT.memo, OT.imm, OT.jmp), '00011010 100101mm oooooooo iiiiiiii jjjjjjjj'],
-                    [(OT.mem,  OT.imm, OT.jmp), '00011aa0 100101mm iiiiiiii jjjjjjjj']]],
+        Inst('tsl',   Form((OT.memo, OT.imm, OT.jmp), '00011010 100101mm oooooooo iiiiiiii jjjjjjjj'),
+                      Form((OT.mem,  OT.imm, OT.jmp), '00011aa0 100101mm iiiiiiii jjjjjjjj')),
 
-        ['wid',    [[(OT.wids, OT.widd) , '1sd00000 00000000']]],
+        Inst('wid',   Form((OT.wids, OT.widd) , '1sd00000 00000000')),
 
-        ['xfer',   [[()               , '01100000 00000000']]],
+        Inst('xfer',  Form(()                 , '01100000 00000000')),
 
-        ['sintr',  [[()               , '01000000 00000000']]],
+        Inst('sintr', Form(()                 , '01000000 00000000')),
 
-        ['hlt',    [[()               , '00100000 01001000']]],
+        Inst('hlt',   Form(()                 , '00100000 01001000')),
 
-        ['nop',    [[()               , '00000000 00000000']]]
+        Inst('nop',   Form(()                 , '00000000 00000000'))
     ]
 
     # GA, GB, GC, TP are 20-bit pointer registers w/ tag bit,
@@ -349,15 +361,15 @@ class I89:
 
 
     def __opcode_init(self):
-        for mnem, details in self.__inst_set:
-            if mnem not in self.__inst_by_mnemonic:
-                self.__inst_by_mnemonic[mnem] = details
-            for operands, encoding in details:
-                bits, mask, fields = self.__encoding_parse(encoding)
+        for inst in self.__inst_set:
+            if inst.mnem not in self.__inst_by_mnemonic:
+                self.__inst_by_mnemonic[inst.mnem] = inst
+            for form in inst.forms:
+                bits, mask, fields = self.__encoding_parse(form.encoding)
                 opcode = bits[1] & 0xfc
                 if opcode not in self.__inst_by_opcode:
                     self.__inst_by_opcode[opcode] = []
-                self.__inst_by_opcode[opcode].append(self.Op(mnem, operands, bits, mask, fields))
+                self.__inst_by_opcode[opcode].append(self.Op(inst.mnem, form.operands, bits, mask, fields))
                 #print(inst, operands, "%02x" % opcode)
 
 
@@ -410,6 +422,7 @@ class I89:
         if mnemonic not in self.__inst_by_mnemonic:
             return None
         return self.__inst_by_mnemonic[mnemonic]
+
 
     def opcode_search(self, fw, pc):
         opcode = fw[pc+1] & 0xfc
@@ -510,11 +523,18 @@ class I89:
         return length, s, ','.join(operands), fields
 
 
+    # inst can be:
+    #   Inst (return value from mnemonic_search)
+    #   mnemonic (string)
     # each operand can be:
-    # register name (string or enum value)   reg, preg
-    # integer                                jmp, imm, i32, bit, wids, widd
-    # MemoryReferenceOperand                 mem, memo, mem2, memo2
-    def assemble_instruction(self, pc, mnemonic, operands):
+    #   register name (string or enum value)   reg, preg
+    #   integer                                jmp, imm, i32, bit, wids, widd
+    #   MemoryReferenceOperand                 mem, memo, mem2, memo2
+    def assemble_instruction(self, pc, inst, operands):
+        if not isinstance(inst, Inst):
+            inst = self.mnemonic_search(inst)
+            if inst is None:
+                raise Exception('unrecognized mnemonic')
         return bytearray([0x12, 0x34, 0x56])
 
 
