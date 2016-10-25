@@ -177,7 +177,7 @@ class ASI89:
                 bb = [-1] * (2 * len(asi89.pl.operands))
             else:
                 eb = [v & 0xff for v in asi89.pl.operands]
-                ob = [v > 8    for v in asi89.pl.operands]
+                ob = [v >> 8   for v in asi89.pl.operands]
                 bb = eb + ob
                 bb[::2] = eb
                 bb[1::2] = ob
