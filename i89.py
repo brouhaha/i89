@@ -15,6 +15,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from collections import namedtuple
+from enum import Enum
 
 class I89:
 
@@ -232,10 +233,24 @@ class I89:
     #        MOVP stores, loads full pointer including tag bit
     # BC, IX, CC, MC are 16-bit registers, only legal for rrr field,
     # but not for the ppp field
-    reg  = [ 'ga', 'gb', 'gc', 'bc', 'tp', 'ix', 'cc', 'mc']
 
-    # areg
-    areg = ['ga', 'gb', 'gc', 'pp']
+    # Reg used for rrr or ppp field
+    class Reg(Enum):
+        ga = 0
+        gb = 1
+        gc = 2
+        bc = 3
+        tp = 4
+        ix = 5
+        cc = 6
+        mc = 7
+        
+    # AReg used for aa field, as part of memory addressing
+    class AReg(Enum):
+        ga = 0
+        gb = 1
+        gc = 2
+        pp = 3
 
     @staticmethod
     def __byte_parse(bs, second_flag):
@@ -385,7 +400,7 @@ class I89:
         mode   = fields['a' + suffix[pos]]
         mreg   = fields['m' + suffix[pos]]
         del fields['a' + suffix[pos]], fields ['m' + suffix[pos]]
-        s = '[' + self.areg[mreg]
+        s = '[' + self.AReg(mreg).name
         if mode == 0:
             return  s + ']'
         elif mode == 1:
@@ -418,12 +433,12 @@ class I89:
                     else:
                         value = self.ihex(target)
                 elif operand == 'reg':
-                    value = self.reg[ftemp['r']]
+                    value = self.Reg(ftemp['r']).name
                     del ftemp['r']
                 elif operand == 'preg':
                     p = ftemp['p']
                     del ftemp['p']
-                    value = self.reg[p]
+                    value = self.Reg(p).name
                     if value not in ['ga', 'gb', 'gc', 'tp']:
                         value += '_bad'
                 elif operand == 'bit':
