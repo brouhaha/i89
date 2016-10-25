@@ -632,7 +632,7 @@ class I89:
         if s == 8:
             return 0
         elif s == 16:
-            return 0
+            return 1
         else:
             raise I89.OperandOutOfRange()
 
