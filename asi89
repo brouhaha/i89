@@ -1,0 +1,463 @@
+#!/usr/bin/python3
+# Intel 8089 Assembler
+# Copyright 2016 Eric Smith <spacewar@gmail.com>
+
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of version 3 of the GNU General Public License
+# as published by the Free Software Foundation.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+import argparse
+import re
+import sys
+
+from i89 import I89
+from memory import Memory
+
+
+class AssemblerError(Exception):
+    def __init__(self, sl, s):
+        self.sl = sl
+        super().__init__(str(sl.line_num) + ': ' + s)
+
+class WrongOperandCount(AssemblerError):
+    def __init__(self, sl, mnemonic, actual, expected):
+        super().__init__(sl, '%s directive given wrong operand count %d, expected %d' % (mnemonic, actual, expected))
+
+class PhaseError(AssemblerError):
+    def __init__(self, sl, identifier, pass1_value, pass2_value):
+        super().__init__(sl, 'phase error, %s was %04x in pass 1, %04x in pass 2' % (identifier, pass1_value, pass2_value))
+
+class DataUndefinedDuringPhase2Error(AssemblerError):
+    def __init__(self, sl):
+        super().__init__(sl, 'undefined data during phase 2')
+
+class UndefinedSymbol(AssemblerError):
+    def __init__(self, sl, symbol):
+        super().__init__(sl, 'undefined symbol %s' % symbol)
+
+class UnimplementedDirective(AssemblerError):
+    def __init__(self, sl):
+        super().__init__(sl, 'unimplemented directive %s' % sl.mnemonic)
+
+class SyntaxError(AssemblerError):
+    def __init__(self, sl, s):
+        super().__init__(sl, 'syntax error: ' + s)
+        
+class OperandSyntaxError(SyntaxError):
+    def __init__(self, sl, s):
+        super().__init__(sl, 'operand: ' + s)
+
+class OperandsNotAppropriateForInstruction(AssemblerError):
+    pass
+
+class OperandOutOfRange(AssemblerError):
+    pass
+
+class UnknownMnemonic(SyntaxError):
+    pass
+
+class IdentifierWithoutColon(SyntaxError):
+    pass
+
+class DirectiveRequiresName(SyntaxError):
+    pass
+
+class DirectiveCannotHaveLabel(SyntaxError):
+    pass
+
+
+class ASI89:
+
+    def __init__(self, srcfile, listfile, hexfile):
+        self.srcfile = srcfile
+        self.listfile = listfile
+        self.hexfile = hexfile
+
+        self.i89 = I89()
+
+        self.symtab = { }
+        self.memory = Memory()
+
+        self.pass_num = 0
+
+        self.line_num = 0  # current line number
+        self.line = None   # text of current line
+        self.sl = None     # current scanned line
+        self.pl = None     # current parsed line
+
+    def set_symbol(self, symbol, value, phase_check = False):
+        if phase_check and self.symtab[symbol] != value:
+            raise PhaseError(self.sl, symbol, self.symtab[symbol], value)
+        self.symtab[symbol] = value
+
+    def emit(self, bb):
+        pc = self.symtab['$']
+        l = len(bb)
+        if self.pass_num == 2:
+            #if -1 in bb:
+            #    raise DataUndefinedDuringPhase2Error(self.sl)
+            self.memory[pc:pc+l] = bb
+        self.set_symbol('$', pc + l)
+        
+
+    class Directive:
+        def process(self, asi89):
+            raise UnimplementedDirective(asi89.pl.sl)
+
+        def __init__(self, name_required = False,
+                           label_allowed = True,
+                           static_expression_required = False):
+            self.name_required = name_required
+            self.label_allowed = label_allowed
+            self.static_expression_required = False
+
+
+    class EQU_Directive(Directive):
+        def process(self, asi89):
+            print('processing EQU, pass %d line %d' % (asi89.pass_num, asi89.line_num))
+            if len(asi89.pl.operands) != 1:
+                raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 1)
+            asi89.set_symbol(asi89.sl.label, asi89.pl.operands[0], asi89.pass_num == 2)
+
+        def __init__(self):
+            super().__init__(name_required = True,
+                             label_allowed = False,
+                             static_expression_required = True)
+
+
+    class ORG_Directive(Directive):
+        def process(self, asi89):
+            print('processing ORG, pass %d line %d' % (asi89.pass_num, asi89.line_num))
+            if len(asi89.pl.operands) != 1:
+                raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 1)
+            asi89.set_symbol('$', asi89.pl.operands[0])
+
+        def __init__(self):
+            super().__init__(name_required = False,
+                             label_allowed = False,
+                             static_expression_required = True)
+
+
+    class DS_Directive(Directive):
+        def process(self, asi89):
+            print('processing DS, pass %d line %d' % (asi89.pass_num, asi89.line_num))
+            if len(asi89.pl.operands) != 0:
+                raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 0)
+            asi89.set_symbol('$', asi89.symtab['$'] + asi89.pl.operands[0])
+
+        def __init__(self):
+            super().__init__(name_required = False,
+                             label_allowed = False,
+                             static_expression_required = True)
+
+
+    class DB_Directive(Directive):
+        def process(self, asi89):
+            print('processing DB, pass %d line %d' % (asi89.pass_num, asi89.line_num))
+            if len(asi89.pl.operands) < 1:
+                raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 1)
+            asi89.emit(asi89.pl.operands)
+
+        def __init__(self):
+            super().__init__(name_required = False,
+                             label_allowed = True,
+                             static_expression_required = False)
+
+
+    class DW_Directive(Directive):
+        def process(self, asi89):
+            print('processing DW, pass %d line %d' % (asi89.pass_num, asi89.line_num))
+            if len(asi89.pl.operands) < 1:
+                raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 1)
+            if -1 in asi89.pl.operands:
+                bb = [-1] * (2 * len(asi89.pl.operands))
+            else:
+                eb = [v & 0xff for v in asi89.pl.operands]
+                ob = [v > 8    for v in asi89.pl.operands]
+                bb = eb + ob
+                bb[::2] = eb
+                bb[1::2] = ob
+            asi89.emit(bb)
+                
+
+
+        def __init__(self):
+            super().__init__(name_required = False,
+                             label_allowed = True,
+                             static_expression_required = False)
+
+
+    directives = { 'db':      DB_Directive(),
+                   'dd':      Directive(),
+                   'ds':      DS_Directive(),
+                   'dw':      DW_Directive(),
+                   'end':     Directive(label_allowed = False),
+                   'ends':    Directive(name_required = True), # ends struct or segment
+                   'equ':     EQU_Directive(),
+                   'even':    Directive(label_allowed = False),
+                   'extrn':   Directive(label_allowed = False),
+                   'name':    Directive(label_allowed = False),
+                   'org':     ORG_Directive(),
+                   'public':  Directive(label_allowed = False),
+                   'segment': Directive(name_required = True),
+                   'struc':   Directive(name_required = True)
+                  }
+
+
+
+
+    class ScannedLine:
+        def __init__(self, line_num, line):
+            self.line_num = line_num
+            self.line     = line
+            self.label    = None
+            self.colon    = None
+            self.mnemonic = None
+            self.operands = []
+            self.comment  = None
+
+
+    class ParsedLine:
+        def __init__(self):
+            self.inst     = None
+            self.operands = []
+
+
+    ident_re_s = '[a-z0-9?_@]+'
+
+    line_re = re.compile('((?P<label>' + ident_re_s + ')(?P<colon>:)?)?'
+                         '(\s+(?P<mnemonic>[a-z]+)'
+                         '(\s+(?P<operands>([^,;\s]+)(\s*,\s*[^,;\s]+)*))?)?'
+                         '\s*(;(?P<comment>.*))?$')
+
+    operands_split_re = re.compile('\s*,\s*')
+
+    def scan_line(self):
+        self.line = self.line.lower().expandtabs()
+        self.sl = ASI89.ScannedLine(self.line_num, self.line)
+        match = self.line_re.match(self.line)
+        if not match:
+            raise SyntaxError(self.sl, '')
+        if match.group('operands') is not None:
+            self.sl.operands = self.operands_split_re.split(match.group('operands'))
+        else:
+            self.sl.operands = []
+        self.sl.label    = match.group('label')
+        self.sl.colon    = match.group('colon') is not None
+        self.sl.mnemonic = match.group('mnemonic')
+        self.sl.comment  = match.group('comment')
+
+
+    # operand
+    #   numeric value
+    #     identifier(only)
+    #   register
+    #     pointer register
+    #   memory loc
+    #     [preg]
+    #     [preg].offset
+    #     [preg+IX]
+    #     [preg+IX+]
+
+
+    reg_re_s  = '|'.join([r.name for r in list(I89.Reg)])
+    reg_operand_re = re.compile(reg_re_s)
+
+    areg_re_s = '|'.join([r.name for r in list(I89.AReg)])
+    mem_operand_re = re.compile('\[(?P<base>' + areg_re_s + ')'
+                                '(?P<index>\+ix(?P<autoincr>\+)?)?'
+                                '\]'
+                                '(\.(?P<offset>[^,]+))?'
+                                '$')
+
+
+    number_re = re.compile('(?P<decimal>[0-9]+$)|((?P<hex>[0-9][0-9a-f]*)h$)')
+
+    ident_re = re.compile(ident_re_s)
+
+    def parse_expression(self, s):
+        m = self.number_re.match(s)
+        if m:
+            if m.group('decimal'):
+                return int(m.group('decimal'))
+            if m.group('hex'):
+                return int(m.group('hex'), 16)
+        m = self.ident_re.match(s)
+        print('pass %d line %d ident %s' % (self.pass_num, self.line_num, s), m)
+        if m:
+            ident = m.group(0)
+            rest = s[len(ident):]
+            print('ident: "%s", rest: "%s"' % (ident, rest))
+            if ident in self.symtab:
+                value = self.symtab[ident]
+            elif self.pass_num == 1:
+                value = 0  # most places it's OK to be underfined on pass 1
+                           # XXX Would like a sentinel value like -1, but
+                           #     causes problems with bytearray
+            else:
+                raise UndefinedSymbol(self.sl, ident)
+            if len(rest) == 0:
+                return value
+            # XXX The following results in the associativity of '-' being
+            # wrong.  a-b-c  should be equivalent to (a-b)-c, but this will
+            # evaluate it as a-(b-c), which is equivalent to (a-b)+c
+            if rest[0] == '+':
+                v2 = self.parse_expression(rest[1:])
+                if value < 0 or v2 < 0:
+                    return -1
+                else:
+                    return (value + v2) & 0xffff
+            elif rest[0] == '-':
+                v2 = self.parse_expression(rest[1:])
+                if value < 0 or v2 < 0:
+                    return -1
+                else:
+                    return (value - v2) & 0xffff
+            else:
+                return None
+        return None
+
+    def parse_operand(self, s):
+        m = self.mem_operand_re.match(s)
+        if m:
+            base = m.group('base')
+            indexed = m.group('index') is not None
+            auto_increment = m.group('autoincr') is not None
+            offset = m.group('offset')
+            if offset is not None:
+                offset = self.parse_expression(m.group('offset'))
+            return I89.MemoryReference(base, indexed, auto_increment, offset)
+
+        m = self.reg_operand_re.match(s)
+        if m:
+            return I89.Reg[m.group(0)]
+
+        e = self.parse_expression(s)
+        if e is not None:
+            return e
+
+        raise OperandSyntaxError(sl, s)
+
+
+    # return inst, directive, name
+    def parse_line(self):
+        self.pl = ASI89.ParsedLine()
+        if self.sl.mnemonic is None:
+            self.pl.inst = None
+            if self.sl.label is not None:
+                if not self.sl.colon:
+                    raise IdentifierWithoutColon(self.sl, '')
+                self.set_symbol(self.sl.label, self.symtab['$'], phase_check = self.pass_num == 2)
+            return
+
+        if self.sl.mnemonic in self.directives:
+            self.pl.inst = self.directives[self.sl.mnemonic]
+            if self.sl.label is None:
+                if self.pl.inst.name_required:
+                    raise DirectiveRequiresName()
+            elif self.sl.colon: # label
+                if not self.pl.inst.label_allowed:
+                    raise DirectiveCannotHaveLabel()
+                self.set_symbol(self.sl.label, self.symtab['$'], phase_check = self.pass_num == 2)
+            else: # name
+                if not self.pl.inst.name_required:
+                    raise IdentifierWithoutColon()
+        else:
+            try:
+                self.pl.inst = self.i89.mnemonic_search(self.sl.mnemonic)
+            except I89.UnknownMnemonic:
+                raise UnknownMnemonic(self.sl.mnemonic)
+            if self.sl.label is not None:
+                if not self.sl.colon:
+                    raise IdentifierWithoutColon()
+                self.set_symbol(self.sl.label, self.symtab['$'], phase_check = self.pass_num == 2)
+
+        self.pl.operands = [self.parse_operand(so) for so in self.sl.operands]
+
+
+    def write_hexfile(self, memory, hexfile):
+        pass # XXX more code needed here
+
+
+    def assemble_line(self):
+        if self.pl.inst == None:
+            return
+        elif isinstance(self.pl.inst, ASI89.Directive):
+            self.pl.inst.process(self)
+        else:
+            try:
+                bb = self.i89.assemble_instruction(self.symtab['$'], self.pl.inst, self.pl.operands)
+            except I89.NoMatchingForm:
+                raise OperandsNotAppropriateForInstruction(self.sl, '')
+            except I89.OperandOutOfRange:
+                raise OperandOutOfRange(self.sl, '')
+            self.emit(bb)
+        
+
+    def assemble(self):
+        for self.pass_num in range(1, 3):
+            print('pass %d' % self.pass_num)
+            self.srcfile.seek(0)
+            self.symtab['$'] = 0
+            self.line_num = 0
+            for self.line in self.srcfile:
+                self.line_num += 1
+                self.scan_line()
+                self.parse_line()
+                self.assemble_line()
+
+        print(self.symtab)
+        for k, v in self.symtab.items():
+            print('%-8s %04x' % (k + ':', v))
+
+
+if __name__ == '__main__':
+    if False:
+        for line in sys.stdin:
+            m = mem_operand_re.match(line)
+            if not m:
+                print('no match')
+                continue
+            print(m.groups())
+            print(m.groupdict())
+
+    if False:
+        for line in sys.stdin:
+            sl = scan_line(0, line)
+            if sl.label is not None:
+                print('label:   ', sl.label)
+                if not sl.colon:
+                    print('no colon')
+            if sl.mnemonic is not None:
+                print('mnemonic:', sl.mnemonic)
+            if sl.operands:
+                for i in range(len(sl.operands)):
+                    print('operand %d:' % i, sl.operands[i])
+            if sl.comment:
+                print('comment:', sl.comment)
+
+    parser = argparse.ArgumentParser(description = 'Assembler for Intel 8089 I/O processor')
+
+    parser.add_argument('asmfile', type=argparse.FileType('r'),
+                        help = 'assembler source file')
+
+    parser.add_argument('-l', '--listing', type=argparse.FileType('w'),
+                        help = 'listing output file')
+
+    parser.add_argument('-o', '--output', type=argparse.FileType('w'),
+                        help = 'output file')
+
+    args = parser.parse_args()
+    print(args)
+
+    asi89 = ASI89(srcfile = args.asmfile, listfile = args.listing, hexfile = args.output)
+
+    asi89.assemble()
