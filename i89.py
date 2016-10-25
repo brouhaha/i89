@@ -14,19 +14,24 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-from collections import namedtuple
 from enum import Enum
+
+
+OperandClass = Enum('OperandClass', ['reg',
+                                     'numeric',
+                                     'mem_ref',
+                                     'mem_ref_offset'])
 
 
 # operand type
 # defined outside the I89 class and with very short name because
 # it will be used a lot in the __inst_set class attribute of I89
-OT = Enum('OT', ['reg',   # general register (all 8)
-                 'preg',  # limited subset of reg
-                 'jmp',   # branch target
-                 'imm',   # immediate value, 8 or 16 bit
-                 'i32',   # LPDI segment, offset
-                 'bit',   # bit number, 0..7
+OT = Enum('OT', ['reg',          # general register (all 8)
+                 'preg',         # limited subset of reg
+                 'jmp',          # branch target
+                 'imm',          # immediate value, 8 or 16 bit
+                 'i32',          # LPDI segment, offset
+                 'bit',          # bit number, 0..7
                  'wids', 'widd', # 8 or 16
                  'mem',  'mem2', # mem ref w/o offset
                  'memo', 'memo2' # mem ref w/ offset
@@ -35,7 +40,72 @@ OT = Enum('OT', ['reg',   # general register (all 8)
 
 # An instruction form is a variant of an instruction that takes
 # specific operand types.
-Form = namedtuple('Form', ['operands', 'encoding'])
+class Form:
+    @staticmethod
+    def __byte_parse(bs, second_flag):
+        b = 0
+        m = 0
+        f = { }
+        for i in range(8):
+            c = bs[7-i]
+            if c == '0':
+                m |= (1 << i)
+            elif c == '1':
+                b |= (1 << i)
+                m |= (1 << i)
+            else:
+                if second_flag:
+                    c += '2'
+                if c not in f:
+                    f[c] = 0
+                f[c] |= (1 << i)
+        return b, m, f
+
+    @staticmethod
+    def __encoding_parse(encoding):
+        ep_debug = False
+        if ep_debug:
+            print('encoding', encoding)
+        encoding = encoding.replace(' ', '')
+        bits = []
+        mask = []
+        fields = { }
+        second_flag = False
+        i = 0
+        while len(encoding):
+            if encoding[0] == '/':
+                encoding = encoding[1:]
+                second_flag = True
+                continue
+            assert len(encoding) >= 8
+            byte = encoding[0:8]
+            encoding = encoding[8:]
+            if ep_debug:
+                print('byte', byte)
+            b, m, f = Form.__byte_parse(byte, second_flag)
+            if ep_debug:
+                print('b: ', b, 'm:', m, 'f:', f)
+            bits.append(b)
+            mask.append(m)
+            for k in f:
+                if k not in fields:
+                    fields[k] = [0x00] * (i)
+                fields[k].append(f[k])
+            i += 1
+        if ep_debug:
+            print('fields before:', fields)
+        for k in fields:
+            if len(fields[k]) < i:
+                fields[k] += [0x00] * (i - len(fields[k]))
+        if ep_debug:
+            print('fields after:', fields)
+        return bits, mask, fields
+
+    def __init__(self, operands, encoding):
+        self.operands = operands
+        self.encoding = encoding
+        self.bits, self.mask, self.fields = Form.__encoding_parse(encoding)
+
 
 # An instruction has a single mnemonic, but possibly multiple
 # forms.
@@ -46,7 +116,18 @@ class Inst:
 
 
 class I89:
-    Op = namedtuple('Op', ['mnem', 'operands', 'bits', 'mask', 'fields'])
+    class UnknownMnemonic(Exception):
+        def __init__(self, mnem):
+            super().__init__('unknown mnemonic "%s"' % mnem)
+
+    class NoMatchingForm(Exception):
+        def __init__(self):
+            super().__init__('no matching form')
+
+    class OperandOutOfRange(Exception):
+        def __init__(self):
+            super().__init__('operand out of range')
+
 
     # Follows Intel ASM89 assembler convention for operand ordering.
     # The destination operand precedes the source operand(s).
@@ -280,7 +361,7 @@ class I89:
         pp = 3
 
 
-    class MemoryReferenceOperand:
+    class MemoryReference:
         def __init__(self, base_reg, indexed = False, auto_increment = False, offset = None):
             super().__init__()
             self.base_reg = base_reg
@@ -299,78 +380,15 @@ class I89:
                     self.mode = 3
 
 
-    @staticmethod
-    def __byte_parse(bs, second_flag):
-        b = 0
-        m = 0
-        f = { }
-        for i in range(8):
-            c = bs[7-i]
-            if c == '0':
-                m |= (1 << i)
-            elif c == '1':
-                b |= (1 << i)
-                m |= (1 << i)
-            else:
-                if second_flag:
-                    c += '2'
-                if c not in f:
-                    f[c] = 0
-                f[c] |= (1 << i)
-        return b, m, f
-
-    @staticmethod
-    def __encoding_parse(encoding):
-        ep_debug = False
-        if ep_debug:
-            print('encoding', encoding)
-        encoding = encoding.replace(' ', '')
-        bits = []
-        mask = []
-        fields = { }
-        second_flag = False
-        i = 0
-        while len(encoding):
-            if encoding[0] == '/':
-                encoding = encoding[1:]
-                second_flag = True
-                continue
-            assert len(encoding) >= 8
-            byte = encoding[0:8]
-            encoding = encoding[8:]
-            if ep_debug:
-                print('byte', byte)
-            b, m, f = I89.__byte_parse(byte, second_flag)
-            if ep_debug:
-                print('b: ', b, 'm:', m, 'f:', f)
-            bits.append(b)
-            mask.append(m)
-            for k in f:
-                if k not in fields:
-                    fields[k] = [0x00] * (i)
-                fields[k].append(f[k])
-            i += 1
-        if ep_debug:
-            print('fields before:', fields)
-        for k in fields:
-            if len(fields[k]) < i:
-                fields[k] += [0x00] * (i - len(fields[k]))
-        if ep_debug:
-            print('fields after:', fields)
-        return bits, mask, fields
-
-
     def __opcode_init(self):
         for inst in self.__inst_set:
             if inst.mnem not in self.__inst_by_mnemonic:
                 self.__inst_by_mnemonic[inst.mnem] = inst
             for form in inst.forms:
-                bits, mask, fields = self.__encoding_parse(form.encoding)
-                opcode = bits[1] & 0xfc
+                opcode = form.bits[1] & 0xfc
                 if opcode not in self.__inst_by_opcode:
                     self.__inst_by_opcode[opcode] = []
-                self.__inst_by_opcode[opcode].append(self.Op(inst.mnem, form.operands, bits, mask, fields))
-                #print(inst, operands, "%02x" % opcode)
+                self.__inst_by_opcode[opcode].append(Inst(inst.mnem, form))
 
 
     def _opcode_table_print(self):
@@ -379,14 +397,13 @@ class I89:
                 print("%02x:" % opcode, mnem, operands, bits, mask, fields)
 
 
-
     @staticmethod
-    def __extract_field(inst, op, f):
+    def __extract_field(inst, fields, f):
         width = 0
         v = 0
-        for i in reversed(range(min(len(inst), len(op.fields[f])))):
+        for i in reversed(range(min(len(inst), len(fields[f])))):
             for j in reversed(range(8)):
-                if op.fields[f][i] & (1 << j):
+                if fields[f][i] & (1 << j):
                     v = (v << 1) | ((inst[i] >> j) & 1)
                     width += 1
         if width == 8 and v > 127 and (f == 'i' or f == 'j'):
@@ -395,23 +412,24 @@ class I89:
 
 
     def __opcode_match(self, fw, pc, op):
+        form = op.forms[0]
         fields = { }
 
-        l = len(op.bits)
+        l = len(form.bits)
         inst = fw[pc:pc+l]
 
         for i in range(l):
-            if inst[i] & op.mask[i] != op.bits[i] & op.mask[i]:
+            if inst[i] & form.mask[i] != form.bits[i] & form.mask[i]:
                 return None, fields
 
-        for f in op.fields:
-            fields[f] = self.__extract_field(inst, op, f)
+        for f in form.fields:
+            fields[f] = self.__extract_field(inst, form.fields, f)
 
         # 'j' jump target field is relative to address of next instruction
-        if 'j' in op.fields:
+        if 'j' in form.fields:
             fields['j'] = (fields['j'] + pc + l) & 0xffff
 
-        return len(op.bits), fields
+        return len(form.bits), fields
 
 
     class BadInstruction(Exception):
@@ -472,7 +490,7 @@ class I89:
 
         if disassemble_operands:
             ftemp = fields.copy()
-            for operand in op.operands:
+            for operand in op.forms[0].operands:
                 if operand == OT.jmp:
                     target = ftemp['j']
                     del ftemp['j']
@@ -523,20 +541,119 @@ class I89:
         return length, s, ','.join(operands), fields
 
 
+    def __get_operand_class(self, operand):
+        if isinstance(operand, I89.MemoryReference):
+            if operand.mode == 1:
+                return OperandClass.mem_ref_offset
+            else:
+                return OperandClass.mem_ref
+        if isinstance(operand, I89.Reg):
+            return OperandClass.reg
+        if type(operand) is str and operand in I89.Reg.__members__:
+            return OperandClass.reg
+        if isinstance(operand, int):
+            return OperandClass.numeric
+        return None
+        
+
+    __operand_class_by_type = { OT.reg:   OperandClass.reg,
+                                OT.preg:  OperandClass.reg,
+                                OT.jmp:   OperandClass.numeric,
+                                OT.imm:   OperandClass.numeric,
+                                OT.i32:   OperandClass.numeric,
+                                OT.bit:   OperandClass.numeric,
+                                OT.wids:  OperandClass.numeric,
+                                OT.widd:  OperandClass.numeric,
+                                OT.mem:   OperandClass.mem_ref,
+                                OT.mem2:  OperandClass.mem_ref,
+                                OT.memo:  OperandClass.mem_ref_offset,
+                                OT.memo2: OperandClass.mem_ref_offset }
+
+
+    def __operand_types_match(self, operand_classes, operand_types):
+        if len(operand_classes) != len(operand_types):
+            return False
+        for i in range(len(operand_classes)):
+            if self.__operand_class_by_type[operand_types[i]] != operand_classes[i]:
+                return False
+        return True
+
+
+    def __check_range(self, value, r):
+        if value not in r:
+            raise I89.OperandOutOfRange()
+
+    def __width_bit(self, s):
+        if s == 8:
+            return 0
+        elif s == 16:
+            return 0
+        else:
+            raise I89.OperandOutOfRange()
+
+    def __assemble_operand(self, operand, operand_type):
+        if operand_type == OT.reg:
+            if isinstance(operand, I89.Reg):
+                return { 'r': operand.value }
+            elif isinstance(operand, str):
+                return { 'r': I89.Reg[operand].value }
+        elif operand_type == OT.preg:
+            if isinstance(operand, I89.Reg):
+                return { 'p': operand.value }
+            elif isinstance(operand, str):
+                return { 'p': I89.Reg[operand].value }
+        elif operand_type == OT.jmp:
+            return { 'j': operand }  # will need to be converted to PC-relative
+        elif operand_type == OT.imm:
+            return { 'i': operand }
+        elif operand_type == OT.i32:
+            return { 'i': operand & 0xffff, 's': operand >> 16}
+        elif operand_type == OT.bit:
+            self.__check_range(operand, range(0, 8))
+            return { 'b': operand }
+        elif operand_type == OT.wids:
+            return { 's': self.__width_bit(operand) }
+        elif operand_type == OT.widd:
+            return { 'd': self.__width_bit(operand) }
+        elif operand_type == OT.mem:
+            return { 'a': operand.mode, 'm': operand.base_reg }
+        elif operand_type == OT.mem2:
+            return { 'a2': operand.mode, 'm2': operand.base_reg }
+        elif operand_type == OT.memo:
+            self.__check_range(operand.offset, range(0, 256))
+            return { 'm': operand.base_reg, 'o': operand.offset }
+        elif operand_type == OT.memo2:
+            self.__check_range(operand.offset, range(0, 256))
+            return { 'm2': operand.base_reg, 'o2': operand.offset }
+        else:
+            raise Unimplemented("can't assemble operand")
+
+
+    # pc is used to compute relative branch targets                       
     # inst can be:
     #   Inst (return value from mnemonic_search)
     #   mnemonic (string)
     # each operand can be:
-    #   register name (string or enum value)   reg, preg
-    #   integer                                jmp, imm, i32, bit, wids, widd
-    #   MemoryReferenceOperand                 mem, memo, mem2, memo2
+    #   I89.reg or register name (str)   reg, preg
+    #   integer                          jmp, imm, i32, bit, wids, widd
+    #   I89.MemoryReference              mem, memo, mem2, memo2
     def assemble_instruction(self, pc, inst, operands):
         if not isinstance(inst, Inst):
             inst = self.mnemonic_search(inst)
             if inst is None:
-                raise Exception('unrecognized mnemonic')
-        return bytearray([0x12, 0x34, 0x56])
-
+                raise I89.UnknownMnemonic(inst)
+        operand_classes = [self.__get_operand_class(operand) for operand in operands]
+        for form in inst.forms:
+            if self.__operand_types_match(operand_classes, form.operands):
+                break
+        else:
+            raise I89.NoMatchingForm()
+        fields = { }
+        for i in range(len(operands)):
+            fields.update(self.__assemble_operand(operands[i], form.operands[i]))
+        bits = bytearray(form.bits)
+        # XXX need to insert fields
+        return bits
 
     def __init__(self):
         self.__inst_by_opcode = { }
