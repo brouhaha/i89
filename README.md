@@ -2,6 +2,9 @@
 
 Copyright 2016 Eric Smith <spacewar@gmail.com>
 
+i89 development is hosted at the
+[i89 Github repository](https://github.com/brouhaha/i89/).
+
 ## Introduction
 
 From roughly 1980 to 1985, Intel made the
@@ -11,29 +14,31 @@ microprocessors. The 8089 is in a sense a fancy two-channel DMA
 controller, and is intended to be used in a manner similar to
 mainframe data channels.  The 8089 has an instruction set optimized
 for data transfers, and is not suited to general-purpose computation.
-The 8089 never became popular, but was used in some Intel Multibus
-disk controllers, including the iSBC 215 and iSBC 220.
+The 8089 never saw widespread deployment, but was used in some Intel
+Multibus disk controllers, including the iSBC 215 and iSBC 220.
 
-Contrary to the claim in the Wikipedia article, the 8089 is not a
+Contrary to a claim in the Wikipedia article, the 8089 is not a
 coprocessor. While it is designed such that it can be tightly coupled
 (electrically) with an 8086 or 8088, each channel of the 8089 executes
 its own instruction using its own program counter ("TP" register), and
 does not monitor or interpret any instructions from the 8086/8088
 program.
 
-Intel offered the ASM89 assembler, which ran on the ISIS-II operating
-system on their MDS 800, Series II, III, IV, and iPDS development
+Intel offered the ASM89 assembler, which ran on the
+[ISIS-II operating system](https://en.wikipedia.org/wiki/ISIS_(operating_system))
+on the MDS 800, Series II, III, IV, and iPDS development
 systems, in conjunction with the LINK86 linker and LOC86 locator. It
-is now difficult if not impossible to obtain a copy of ASM89.
+is now rather difficult to obtain a copy of ASM89.
 
 i89 provides limited cross-development capabilities for the 8089,
 including a disassembler and assembler, which should work on any host
-platform that provides Python 3.4 or later.
+platform that provides
+[Python](https://www.python.org/) 3.4 or later.
 
 i89 was developed to support reverse-engineering and modification of
 the firmware of the Intel iSBC 215 family of disk controllers, and
 consequently some features that would be of use for general purpose
-8089 support are not present. Limitation are described in sections
+8089 support are not present. Limitations are described in sections
 below.
 
 The examples of command lines given below do not show the path to the
@@ -44,7 +49,9 @@ specification of the Python interpreter.
 ## Disassembler usage:
 
 The disi89 disassembler can accept either raw binary input files
-(default), or Intel hex input files if the "`--hex`" option is given
+(default), or
+[Intel hex format](https://en.wikipedia.org/wiki/Intel_HEX)
+input files if the "`--hex`" option is given
 on the command line.  If other file formats are needed, the srec_cat
 utility of [srecord](http://srecord.sourceforge.net/) is recommended.
 
