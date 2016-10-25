@@ -112,7 +112,7 @@ class Memory:
         last = self.valid.find(0, first + 1)
         if last < 0:
             last = self.size - 1
-        return slice(first, last + 1)
+        return slice(first, last)
 
     def truncate(self, last = None):
         if last is None:
