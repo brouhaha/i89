@@ -48,6 +48,10 @@ class UnimplementedDirective(AssemblerError):
     def __init__(self, sl):
         super().__init__(sl, 'unimplemented directive %s' % sl.mnemonic)
 
+class InvalidStrucNesting(AssemblerError):
+    def __init__(self, sl):
+        super().__init__(sl, 'invalid struc nesting')
+
 class SyntaxError(AssemblerError):
     def __init__(self, sl, s):
         super().__init__(sl, 'syntax error: ' + s)
@@ -118,7 +122,7 @@ class ASI89:
                            static_expression_required = False):
             self.name_required = name_required
             self.label_allowed = label_allowed
-            self.static_expression_required = False
+            self.static_expression_required = static_expression_required
 
 
     class EQU_Directive(Directive):
@@ -147,13 +151,13 @@ class ASI89:
 
     class DS_Directive(Directive):
         def process(self, asi89):
-            if len(asi89.pl.operands) != 0:
-                raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 0)
+            if len(asi89.pl.operands) != 1:
+                raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 1)
             asi89.set_symbol('$', asi89.symtab['$'] + asi89.pl.operands[0])
 
         def __init__(self):
             super().__init__(name_required = False,
-                             label_allowed = False,
+                             label_allowed = True,
                              static_expression_required = True)
 
 
@@ -162,11 +166,6 @@ class ASI89:
             if len(asi89.pl.operands) < 1:
                 raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 1)
             return bytearray(asi89.pl.operands)
-
-        def __init__(self):
-            super().__init__(name_required = False,
-                             label_allowed = True,
-                             static_expression_required = False)
 
 
     class DW_Directive(Directive):
@@ -182,13 +181,38 @@ class ASI89:
                 bb[::2] = eb
                 bb[1::2] = ob
             return bb
+
+
+    class STRUC_Directive(Directive):
+        def __init__(self):
+            super().__init__(name_required = True,
+                             label_allowed = False,
+                             static_expression_required = False)
+
+        def process(self, asi89):
+            if len(asi89.pl.operands) > 0:
+                raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 0)
+            if asi89.struc_name is not None:
+                raise InvalidStrucNesting(asi89.sl)
+            asi89.struc_name = asi89.sl.label
+            asi89.struc_save_pc = asi89.symtab['$']
+            asi89.symtab['$'] = 0
                 
 
-
+    class ENDS_Directive(Directive):
         def __init__(self):
-            super().__init__(name_required = False,
-                             label_allowed = True,
+            super().__init__(name_required = True,
+                             label_allowed = False,
                              static_expression_required = False)
+
+        def process(self, asi89):
+            if len(asi89.pl.operands) > 0:
+                raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 0)
+            if asi89.struc_name is None or asi89.struc_name != asi89.sl.label:
+                raise InvalidStrucNesting(asi89.sl)
+            asi89.symtab['$'] = asi89.struc_save_pc
+            asi89.struc_save_pc = None
+            asi89.struc_name = None
 
 
     directives = { 'db':      DB_Directive(),
@@ -196,7 +220,7 @@ class ASI89:
                    'ds':      DS_Directive(),
                    'dw':      DW_Directive(),
                    'end':     Directive(label_allowed = False),
-                   'ends':    Directive(name_required = True), # ends struct or segment
+                   'ends':    ENDS_Directive(), # ends struct or segment
                    'equ':     EQU_Directive(),
                    'even':    Directive(label_allowed = False),
                    'extrn':   Directive(label_allowed = False),
@@ -204,7 +228,7 @@ class ASI89:
                    'org':     ORG_Directive(),
                    'public':  Directive(label_allowed = False),
                    'segment': Directive(name_required = True),
-                   'struc':   Directive(name_required = True)
+                   'struc':   STRUC_Directive()
                   }
 
 
@@ -350,7 +374,7 @@ class ASI89:
             self.pl.inst = None
             if self.sl.label is not None:
                 if not self.sl.colon:
-                    raise IdentifierWithoutColon(self.sl, '')
+                    raise IdentifierWithoutColon(self.sl, self.sl.label)
                 self.set_symbol(self.sl.label, self.symtab['$'], phase_check = self.pass_num == 2)
             return
 
@@ -365,7 +389,8 @@ class ASI89:
                 self.set_symbol(self.sl.label, self.symtab['$'], phase_check = self.pass_num == 2)
             else: # name
                 if not self.pl.inst.name_required:
-                    raise IdentifierWithoutColon()
+                    print(self.sl, self.pl.inst, self.pl.inst.name_required, flush = True)
+                    raise IdentifierWithoutColon(self.sl, self.sl.label)
         else:
             try:
                 self.pl.inst = self.i89.mnemonic_search(self.sl.mnemonic)
@@ -416,17 +441,21 @@ class ASI89:
             self.srcfile.seek(0)
             self.symtab['$'] = 0
             self.line_num = 0
+            self.struc_name = None
+            self.struc_save_pc = None
             for self.line in self.srcfile:
                 self.line_num += 1
                 self.scan_line()
                 self.parse_line()
                 self.assemble_line()
+            if self.struc_name is not None:
+                raise InvalidStrucNexting(self)
 
         if self.listfile is not None:
             print(file = self.listfile)
-            print(self.symtab, file = self.listfile)
-            for k, v in self.symtab.items():
-                print('%-8s %04x' % (k + ':', v), file = self.listfile)
+            for k in sorted(self.symtab):
+                if k != '$':
+                    print('%04x %-8s' % (self.symtab[k], k), file = self.listfile)
 
         if self.hexfile is not None:
             IntelHex().write(self.hexfile, self.memory)

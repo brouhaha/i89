@@ -105,7 +105,7 @@ Example:
 ## Limitations of asi89 assembler:
 
 * only handles 16-bit address space
-* only the db, dw, ds, and equ directives are supported
+* only the db, dw, ds, equ, and struc/ends directives are supported
 * there is no support for use of a linker; only absolute
   hex output is provided
 * listing file format doesn't match ASM89
