@@ -101,9 +101,9 @@ Example:
 * only handles 16-bit address space
 
 
-
 ## Limitations of asi89 assembler:
 
+* error checking is poor; source code errors cause a Python exception
 * only handles 16-bit address space
 * only the db, dw, ds, equ, and struc/ends directives are supported
 * there is no support for use of a linker; only absolute
@@ -112,8 +112,21 @@ Example:
 * no symbol cross-reference is provided
 
 
+## Enhancements of asi89 assembler relative to Intel ASM89 documentation:
 
-## License information:
+* added FILL <addr>, <value> directive, which fills space between current
+  location and <addr> with the byte <value>
+* expression evaluation supports parenthesis, multiplication, and
+  division.
+
+
+## License information for pyparsing.py:
+
+i89 includes pyparsing.py by Paul T. McGuire. See the top of the
+pyparsing.py source file for copyright and licensing of that file.
+
+
+## License information for files other than pyparsing.py:
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of version 3 of the GNU General Public License

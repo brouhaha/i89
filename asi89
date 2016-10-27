@@ -21,6 +21,7 @@ import sys
 from i89 import I89
 from memory import Memory
 from intelhex import IntelHex
+from expressionparser import ExpressionParser
 
 
 class AssemblerError(Exception):
@@ -60,6 +61,10 @@ class OperandSyntaxError(SyntaxError):
     def __init__(self, sl, s):
         super().__init__(sl, 'operand: ' + s)
 
+class ExpressionSyntaxError(SyntaxError):
+    def __init__(self, sl, s):
+        super().__init__(sl, 'expression: ' + s)
+
 class OperandsNotAppropriateForInstruction(AssemblerError):
     pass
 
@@ -97,6 +102,8 @@ class ASI89:
         self.line = None   # text of current line
         self.sl = None     # current scanned line
         self.pl = None     # current parsed line
+
+        self.ep = ExpressionParser(self.symtab)
 
     def set_symbol(self, symbol, value, phase_check = False):
         if phase_check and self.symtab[symbol] != value:
@@ -215,6 +222,20 @@ class ASI89:
             asi89.struc_name = None
 
 
+    class FILL_Directive(Directive):
+        def __init__(self):
+            super().__init__(name_required = False,
+                             label_allowed = True,
+                             static_expression_required = False)
+
+        def process(self, asi89):
+            if len(asi89.pl.operands) != 2:
+                raise WrongOperandCount(asi89.sl, asi89.sl.mnemonic, len(asi89.pl.operands), 2)
+            count = asi89.pl.operands[0] - asi89.symtab['$']
+            value = asi89.pl.operands[1]
+            asi89.emit(bytearray([value] * count))
+
+
     directives = { 'db':      DB_Directive(),
                    'dd':      Directive(),
                    'ds':      DS_Directive(),
@@ -224,14 +245,13 @@ class ASI89:
                    'equ':     EQU_Directive(),
                    'even':    Directive(label_allowed = False),
                    'extrn':   Directive(label_allowed = False),
+                   'fill':    FILL_Directive(),
                    'name':    Directive(label_allowed = False),
                    'org':     ORG_Directive(),
                    'public':  Directive(label_allowed = False),
                    'segment': Directive(name_required = True),
                    'struc':   STRUC_Directive()
                   }
-
-
 
 
     class ScannedLine:
@@ -299,51 +319,16 @@ class ASI89:
                                 '$')
 
 
-    number_re = re.compile('(?P<decimal>[0-9]+$)|((?P<hex>[0-9][0-9a-f]*)h$)')
-
-    ident_re = re.compile(ident_re_s)
-
     def parse_expression(self, s):
-        m = self.number_re.match(s)
-        if m:
-            if m.group('decimal'):
-                return int(m.group('decimal'))
-            if m.group('hex'):
-                return int(m.group('hex'), 16)
-        m = self.ident_re.match(s)
-        #print('pass %d line %d ident %s' % (self.pass_num, self.line_num, s), m)
-        if m:
-            ident = m.group(0)
-            rest = s[len(ident):]
-            #print('ident: "%s", rest: "%s"' % (ident, rest))
-            if ident in self.symtab:
-                value = self.symtab[ident]
-            elif self.pass_num == 1:
-                value = 0  # most places it's OK to be underfined on pass 1
-                           # XXX Would like a sentinel value like -1, but
-                           #     causes problems with bytearray
-            else:
-                raise UndefinedSymbol(self.sl, ident)
-            if len(rest) == 0:
-                return value
-            # XXX The following results in the associativity of '-' being
-            # wrong.  a-b-c  should be equivalent to (a-b)-c, but this will
-            # evaluate it as a-(b-c), which is equivalent to (a-b)+c
-            if rest[0] == '+':
-                v2 = self.parse_expression(rest[1:])
-                if value < 0 or v2 < 0:
-                    return -1
-                else:
-                    return (value + v2) & 0xffff
-            elif rest[0] == '-':
-                v2 = self.parse_expression(rest[1:])
-                if value < 0 or v2 < 0:
-                    return -1
-                else:
-                    return (value - v2) & 0xffff
-            else:
-                return None
-        return None
+        try:
+            estk = self.ep.parse(s)
+        except Exception as e:
+            raise ExpressionSyntaxError(self.sl, s)
+        value = self.ep.evaluate(estk)
+        if value is None:
+            return 0  # XXX quick and dirty hack
+        return value
+
 
     def parse_operand(self, s):
         m = self.mem_operand_re.match(s)
@@ -361,10 +346,11 @@ class ASI89:
             return I89.Reg[m.group(0)]
 
         e = self.parse_expression(s)
-        if e is not None:
-            return e
+        if e is None:
+            #raise OperandSyntaxError(self.sl, s)
+            return 0
+        return e
 
-        raise OperandSyntaxError(sl, s)
 
 
     # return inst, directive, name
@@ -421,15 +407,15 @@ class ASI89:
         if self.pass_num == 2 and self.listfile:
             s = '%5d  ' % self.line_num
             if len(bb):
-                s += '%04x ' % self.symtab['$']
+                s += '%04x  ' % self.symtab['$']
             else:
-                s += '     '
+                s += '      '
             for i in range(6):
                 if i < len(bb):
-                    s += ' %02x' % bb[i]
+                    s += '%02x ' % bb[i]
                 else:
                     s += '   '
-            s += self.line
+            s += ' ' + self.line
             print(s, file = self.listfile)
         if len(bb):
             self.emit(bb)
