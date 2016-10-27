@@ -319,14 +319,18 @@ class ASI89:
                                 '$')
 
 
-    def parse_expression(self, s):
+    def parse_expression(self, s, undefined_ok = False):
         try:
             estk = self.ep.parse(s)
         except Exception as e:
             raise ExpressionSyntaxError(self.sl, s)
-        value = self.ep.evaluate(estk)
-        if value is None:
-            return 0  # XXX quick and dirty hack
+        try:
+            value = self.ep.evaluate(estk)
+        except ExpressionParser.UndefinedSymbol as us:
+            if undefined_ok:
+                value = 0
+            else:
+                raise UndefinedSymbol(self.sl, us)
         return value
 
 
@@ -338,17 +342,14 @@ class ASI89:
             auto_increment = m.group('autoincr') is not None
             offset = m.group('offset')
             if offset is not None:
-                offset = self.parse_expression(m.group('offset'))
+                offset = self.parse_expression(m.group('offset'), undefined_ok = self.pass_num == 1)
             return I89.MemoryReference(base, indexed, auto_increment, offset)
 
         m = self.reg_operand_re.match(s)
         if m:
             return I89.Reg[m.group(0)]
 
-        e = self.parse_expression(s)
-        if e is None:
-            #raise OperandSyntaxError(self.sl, s)
-            return 0
+        e = self.parse_expression(s, undefined_ok = self.pass_num == 1)
         return e
 
 

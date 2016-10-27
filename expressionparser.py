@@ -21,7 +21,13 @@ from pyparsing import Combine, Forward, Literal, OneOrMore, Optional, \
     ParseException, StringEnd, Word, ZeroOrMore, \
     alphas, alphanums, hexnums, nums
 
+
 class ExpressionParser:
+
+    class UndefinedSymbol(Exception):
+        def __init__(self, s):
+            self.symbol = s
+            super().__init__('Undefined symbol "%s"' % s)
 
     operators = { '+': (lambda a,b: a + b),
                   '-': (lambda a,b: a - b),
@@ -84,7 +90,7 @@ class ExpressionParser:
             if op in self.symtab:
                 return self.symtab[op]
             else:
-                return None
+                raise ExpressionParser.UndefinedSymbol(op)
         else:
             return op
 
