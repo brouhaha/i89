@@ -88,13 +88,14 @@ class IntelHex:
     def read(self, f, memory = None, load_addr = None):
         self.f = f
         if memory is None:
-            self.memory = Memory(0x10000)
+            self.memory = Memory(size = 0x10000)
         else:
             self.memory = memory
 
+        self.rn = 0
         self.load_addr = load_addr
-
         self.expected_addr = None
+
         try:
             while True:
                 self.get_record()
