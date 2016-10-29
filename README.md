@@ -72,7 +72,7 @@ Examples:
   Disassembles from two Intel hex files, interleaving them, and
   generates output in the form of a listing.
 
-* `disi89 isbc215.bin >isbc215.asm
+* `disi89 isbc215.bin >isbc215.asm`
 
   Disassembles from a single binary file, and
   generates output in the form of assembly source.
