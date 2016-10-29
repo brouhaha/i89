@@ -369,7 +369,7 @@ class ASI89:
             self.pl.inst = self.directives[self.sl.mnemonic]
             if self.sl.label is None:
                 if self.pl.inst.name_required:
-                    raise DirectiveRequiresName()
+                    raise DirectiveRequiresName(self.sl, self.sl.mnemonic)
             elif self.sl.colon: # label
                 if not self.pl.inst.label_allowed:
                     raise DirectiveCannotHaveLabel()
