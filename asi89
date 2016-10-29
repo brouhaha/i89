@@ -309,7 +309,7 @@ class ASI89:
 
 
     reg_re_s  = '|'.join([r.name for r in list(I89.Reg)])
-    reg_operand_re = re.compile(reg_re_s)
+    reg_operand_re = re.compile('(?P<reg>' + reg_re_s + ')$')
 
     areg_re_s = '|'.join([r.name for r in list(I89.AReg)])
     mem_operand_re = re.compile('\[(?P<base>' + areg_re_s + ')'
@@ -376,7 +376,6 @@ class ASI89:
                 self.set_symbol(self.sl.label, self.symtab['$'], phase_check = self.pass_num == 2)
             else: # name
                 if not self.pl.inst.name_required:
-                    print(self.sl, self.pl.inst, self.pl.inst.name_required, flush = True)
                     raise IdentifierWithoutColon(self.sl, self.sl.label)
         else:
             try:
