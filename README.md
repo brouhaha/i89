@@ -114,8 +114,8 @@ Example:
 
 ## Enhancements of asi89 assembler relative to Intel ASM89 documentation:
 
-* added FILL <addr>, <value> directive, which fills space between current
-  location and <addr> with the byte <value>
+* added `FILL <addr>, <value>` directive, which fills space between current
+  location and `<addr>` with the byte `<value>`
 * expression evaluation supports parenthesis, multiplication, and
   division.
 
