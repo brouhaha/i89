@@ -451,7 +451,7 @@ class I89:
                 if fields[f].mask[i] & (1 << j):
                     v = (v << 1) | ((inst[i] >> j) & 1)
                     width += 1
-        if width == 8 and v > 127 and (f == 'i' or f == 'j'):
+        if width == 8 and v > 127 and f == 'j':
             v += (65536 - 256)
         return v
 
