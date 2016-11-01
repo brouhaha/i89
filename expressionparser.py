@@ -18,8 +18,10 @@
 
 
 from pyparsing import Combine, Forward, Literal, OneOrMore, Optional, \
-    ParseException, StringEnd, Word, ZeroOrMore, \
-    alphas, alphanums, hexnums, nums
+    ParseException, ParserElement, ParseResults, StringEnd, Word, \
+    ZeroOrMore, \
+    infixNotation, oneOf, \
+    alphas, alphanums, hexnums, nums, opAssoc
 
 
 class ExpressionParser:
@@ -29,82 +31,171 @@ class ExpressionParser:
             self.symbol = s
             super().__init__('Undefined symbol "%s"' % s)
 
-    operators = { '+': (lambda a,b: a + b),
-                  '-': (lambda a,b: a - b),
-                  '*': (lambda a,b: a * b),
-                  '/': (lambda a,b: a // b) }
 
-    def push_first(self, str, loc, toks):
-        self.expr_stack.append(toks[0])
+    class RPNItem:
+        pass
         
-    def __init__(self, symtab):
-        self.symtab = symtab
+    class RPNInteger(RPNItem):
+        def __init__(self, value):
+            self.value = value
 
-        plusorminus = Literal('+') | Literal('-')
+        def eval(self, symtab):
+            return self.value
 
-        dec_int = Combine(Optional(plusorminus) + Word(nums)) \
-                  .setParseAction(lambda t: int(''.join(t)))
+        def __str__(self):
+            return str(self.value)
 
-        hex_int = Combine(Word(nums, hexnums) + Word('hH')) \
-                  .setParseAction(lambda t: int((''.join(t))[:-1], 16))
+    class RPNIdentifier(RPNItem):
+        def __init__(self, identifier):
+            self.identifier = identifier
 
-        ident = Word(alphas, alphanums + '_@?')  # XXX and maybe dollar sign?
+        def eval(self, symtab):
+            if self.identifier not in symtab:
+                raise ExpressionParser.UndefinedSymbol(self.identifier)
+            return symtab[self.identifier]
 
-        lpar = Literal('(').suppress()
-        rpar = Literal(')').suppress()
-        addop = Literal('+') | Literal('-')
-        multop = Literal('*') | Literal('/')
+        def __str__(self):
+            return self.identifier
 
-        expr = Forward()
+    class UnaryOp(RPNItem):
+        unary_op_fn = { '+': lambda x: x,
+                        '-': lambda x: -x,
+                        '~': lambda x: ~x,
+                      }
+            
+        def __init__(self, name, op1):
+            self.name = name
+            self.fn = self.unary_op_fn[name]
+            self.op1 = op1
 
-        factor = ((hex_int | dec_int | ident).setParseAction(self.push_first) |
-                  (lpar + expr.suppress() + rpar)
-                 )
+        def eval(self, symtab):
+            if isinstance(self.op1, ExpressionParser.RPNItem):
+                op1 = self.op1.eval(symtab)
+            else:
+                op1 = self.op1
+            return self.fn(op1)
+
+        def __str__(self):
+            return str(self.op1) + ' u' + self.name
+
+    class BinaryOp(RPNItem):
+        binary_op_fn = { '+':  lambda x, y: x + y,
+                         '-':  lambda x, y: x - y,
+                         '*':  lambda x, y: x * y,
+                         '/':  lambda x, y: x // y,
+                         '&':  lambda x, y: x & y,
+                         '|':  lambda x, y: x | y,
+                         '^':  lambda x, y: x ^ y,
+                         '<<': lambda x, y: x << y,
+                         '>>': lambda x, y: x >> y,
+                       }
+
+        def __init__(self, name, op1, op2):
+            self.name = name
+            self.fn = self.binary_op_fn[name]
+            self.op1 = op1
+            self.op2 = op2
+
+        def eval(self, symtab):
+            if isinstance(self.op1, ExpressionParser.RPNItem):
+                op1 = self.op1.eval(symtab)
+            else:
+                op1 = self.op1
+            if isinstance(self.op2, ExpressionParser.RPNItem):
+                op2 = self.op2.eval(symtab)
+            else:
+                op2 = self.op2
+            return self.fn(op1, op2)
+
+        def __str__(self):
+            return str(self.op1) + ' ' + str(self.op2) + ' ' + self.name
+
+
+    # Convert pyparsing infixNotation output with multiple instances of same
+    # operator in one list into nested form.
+    # Based on:
+    #   http://pyparsing.wikispaces.com/share/view/73472016
+    @staticmethod
+    def nest_operand_pairs(tokens):
+        tokens = tokens[0]
+        ret = ParseResults(tokens[:3])
+        remaining = iter(tokens[3:])
+        while True:
+            next_pair = (next(remaining,None), next(remaining,None))
+            if next_pair == (None, None):
+                break
+            ret = ParseResults([ret])
+            ret += ParseResults(list(next_pair))
+        return [ret]
+
+    @staticmethod
+    def infix_to_tree(pe):
+        if isinstance(pe, int):
+            return ExpressionParser.RPNInteger(pe)
+        if isinstance(pe, str):
+            return ExpressionParser.RPNIdentifier(pe)
+        assert isinstance(pe, ParseResults)
+        assert 2 <= len(pe) <= 3
+        if len(pe) == 2:
+            return ExpressionParser.UnaryOp(pe[0],
+                                            ExpressionParser.infix_to_tree(pe[1]))
+        return ExpressionParser.BinaryOp(pe[1], 
+                                         ExpressionParser.infix_to_tree(pe[0]),
+                                         ExpressionParser.infix_to_tree(pe[2]))
+        
+    def __init__(self):
+        ParserElement.enablePackrat()
+        decimal_integer = Word(nums).setName('decimal integer') \
+                          .setParseAction(lambda t: int(''.join(t)))
+
+        hexadecimal_integer = Combine(Word(nums, hexnums) + Word('hH')) \
+                              .setName('hexadecimal integer') \
+                              .setParseAction(lambda t: int((''.join(t))[:-1], 16))
+
+        identifier = Word(alphas, alphanums + '_@?') \
+                     .setName('identifier')
+                     # XXX and maybe dollar sign?
+
+        baseExpr = (hexadecimal_integer |
+                    decimal_integer |
+                    identifier
+                   )
     
-        term = factor + ZeroOrMore((multop + factor).setParseAction(self.push_first))
+        operators = [
+                      (oneOf('+ - ~'), 1, opAssoc.RIGHT, self.nest_operand_pairs),
+                      (oneOf('* /'),   2, opAssoc.LEFT,  self.nest_operand_pairs),
+                      (oneOf('+ -'),   2, opAssoc.LEFT,  self.nest_operand_pairs),
+                      (oneOf('<< >>'), 2, opAssoc.LEFT,  self.nest_operand_pairs),
+                      (oneOf('&'),     2, opAssoc.LEFT,  self.nest_operand_pairs),
+                      (oneOf('^'),     2, opAssoc.LEFT,  self.nest_operand_pairs),
+                      (oneOf('|'),     2, opAssoc.LEFT,  self.nest_operand_pairs),
+                    ]
+                  
 
-        expr << term + ZeroOrMore((addop + term).setParseAction(self.push_first))
-
-        self.pattern = expr + StringEnd()
+        self.expr = infixNotation(baseExpr, operators) + StringEnd()
 
     def parse(self, s):
-        self.expr_stack = []
-        #try:
-        self.pattern.parseString(s)
-        #except ParseException:
-        #   raise SomeOtherException    
-        return self.expr_stack
+        e = self.expr.parseString(s)[0]
+        #print('before:', e)
+        e = self.infix_to_tree(e)
+        #print('after:', e)
+        return e
 
-    def evaluate(self, stk):
-        op = stk.pop()
-        if op in self.operators:
-            right_operand = self.evaluate(stk)
-            left_operand = self.evaluate(stk)
-            # XXX Currently using None for expressions that contain
-            #     undefined symbols.  We might want to change that
-            #     to a singleton UndefinedExpression or something.
-            if left_operand is None or right_operand is None:
-                return None
-            return self.operators[op](left_operand, right_operand)
-        elif type(op) is str:
-            if op in self.symtab:
-                return self.symtab[op]
-            else:
-                raise ExpressionParser.UndefinedSymbol(op)
-        else:
-            return op
+       
 
 
 if __name__ == '__main__':
+    ep = ExpressionParser()
+
     symtab = { 'a': 3,
                'b': 5 }
-    ep = ExpressionParser(symtab)
 
     while True:
         try:
             estr = input('> ')
         except EOFError:
             break
-        estk = ep.parse(estr)
-        print(ep.evaluate(estk))
+        tree = ep.parse(estr)
+        print(str(tree))
+        print(tree.eval(symtab))
 

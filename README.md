@@ -116,8 +116,8 @@ Example:
 
 * added `FILL <addr>, <value>` directive, which fills space between current
   location and `<addr>` with the byte `<value>`
-* expression evaluation supports parenthesis, multiplication, and
-  division.
+* expression evaluation supports parenthesis, multiplication, division,
+  bitwise and, or, and negation, and logical shifts.
 
 
 ## License information for pyparsing.py:

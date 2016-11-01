@@ -103,7 +103,7 @@ class ASI89:
         self.sl = None     # current scanned line
         self.pl = None     # current parsed line
 
-        self.ep = ExpressionParser(self.symtab)
+        self.ep = ExpressionParser()
 
     def set_symbol(self, symbol, value, phase_check = False):
         if phase_check and self.symtab[symbol] != value:
@@ -321,11 +321,11 @@ class ASI89:
 
     def parse_expression(self, s, undefined_ok = False):
         try:
-            estk = self.ep.parse(s)
+            ast = self.ep.parse(s)
         except Exception as e:
             raise ExpressionSyntaxError(self.sl, s)
         try:
-            value = self.ep.evaluate(estk)
+            value = ast.eval(self.symtab)
         except ExpressionParser.UndefinedSymbol as us:
             if undefined_ok:
                 value = 0
@@ -442,10 +442,17 @@ class ASI89:
             for k in sorted(self.symtab):
                 if k != '$':
                     print('%04x %-8s' % (self.symtab[k], k), file = self.listfile)
+            self.listfile.flush()
+            #self.listfile.close()
+            #x = self.listfile.tell()
+            #print(self.listfile.tell())
 
         if self.hexfile is not None:
             IntelHex().write(self.hexfile, self.memory)
-
+            self.hexfile.flush()
+            #self.hexfile.close()
+            #x = self.hexfile.tell()
+            #print(self.hexfile.tell())
 
 if __name__ == '__main__':
     if False:
