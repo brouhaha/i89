@@ -71,7 +71,10 @@ import sys
 import warnings
 import re
 import sre_constants
-import collections
+try:
+    from collections import abc as collections
+except ImportError:
+    import collections
 import pprint
 import traceback
 import types
