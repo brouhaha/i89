@@ -124,7 +124,7 @@ if __name__ == '__main__':
         args.length = len(memory)
 
     if args.base != 0:
-        memory = memory(data = bytearray(args.base) + memory[:])
+        memory = Memory(data = bytearray(args.base) + memory[:])
 
     disassemble(i89, memory, show_obj = args.listing, output_file = args.output,
                 base = args.base,
