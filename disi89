@@ -24,7 +24,7 @@ from memory import Memory
 def pass1(i89, fw, base, length):
     symtab_by_value = {}
     pc = base
-    while pc < base + length - 2:
+    while pc < base + length:
         (inst_length, dis, operands, fields) = i89.disassemble_inst(fw, pc, disassemble_operands = False)
         if 'j' in fields:
             symtab_by_value[fields['j']] = 'x%04x' % fields['j']
@@ -34,7 +34,7 @@ def pass1(i89, fw, base, length):
 def pass2(i89, fw, base, length,
           symtab_by_value, show_obj = False, output_file = sys.stdout):
     pc = base
-    while pc < base + length - 2:
+    while pc < base + length:
         s = ''
         (inst_length, dis, operands, fields) = i89.disassemble_inst(fw, pc, symtab_by_value)
         if show_obj:
