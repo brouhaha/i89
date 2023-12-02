@@ -273,12 +273,12 @@ class ASI89:
 
     ident_re_s = '[a-z0-9?_@]+'
 
-    line_re = re.compile('((?P<label>' + ident_re_s + ')(?P<colon>:)?)?'
-                         '(\s+(?P<mnemonic>[a-z]+)'
-                         '(\s+(?P<operands>([^,;\s]+)(\s*,\s*[^,;\s]+)*))?)?'
-                         '\s*(;(?P<comment>.*))?$')
+    line_re = re.compile(r'((?P<label>' + ident_re_s + ')(?P<colon>:)?)?'
+                         r'(\s+(?P<mnemonic>[a-z]+)'
+                         r'(\s+(?P<operands>([^,;\s]+)(\s*,\s*[^,;\s]+)*))?)?'
+                         r'\s*(;(?P<comment>.*))?$')
 
-    operands_split_re = re.compile('\s*,\s*')
+    operands_split_re = re.compile(r'\s*,\s*')
 
     def scan_line(self):
         self.line = self.line.rstrip().lower().expandtabs()
@@ -312,11 +312,11 @@ class ASI89:
     reg_operand_re = re.compile('(?P<reg>' + reg_re_s + ')$')
 
     areg_re_s = '|'.join([r.name for r in list(I89.AReg)])
-    mem_operand_re = re.compile('\[(?P<base>' + areg_re_s + ')'
-                                '(?P<index>\+ix(?P<autoincr>\+)?)?'
-                                '\]'
-                                '(\.(?P<offset>[^,]+))?'
-                                '$')
+    mem_operand_re = re.compile(r'\[(?P<base>' + areg_re_s + ')'
+                                r'(?P<index>\+ix(?P<autoincr>\+)?)?'
+                                r'\]'
+                                r'(\.(?P<offset>[^,]+))?'
+                                r'$')
 
 
     def parse_expression(self, s, undefined_ok = False):
